@@ -37,6 +37,7 @@ def register_user(
         username=data.username,
         email=data.email,
         password_hash=hashed_password,
+        role="user",
     )
 
     # Save the user

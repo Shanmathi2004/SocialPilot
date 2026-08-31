@@ -31,7 +31,7 @@ class User(Base):
     role = Column(
         String(50),
         nullable=False,
-        default="content_creator"
+        default="user"
     )
 
     is_email_verified = Column(

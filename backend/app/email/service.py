@@ -1,31 +1,73 @@
 import os
 
 from dotenv import load_dotenv
-from fastapi_mail import ConnectionConfig, FastMail, MessageSchema, MessageType
+
+from fastapi_mail import (
+    ConnectionConfig,
+    FastMail,
+    MessageSchema,
+    MessageType,
+)
 
 
 load_dotenv()
 
 
-mail_config = ConnectionConfig(
-    MAIL_USERNAME=os.getenv("MAIL_USERNAME"),
-    MAIL_PASSWORD=os.getenv("MAIL_PASSWORD"),
-    MAIL_FROM=os.getenv("MAIL_FROM"),
-    MAIL_SERVER=os.getenv("MAIL_SERVER"),
-    MAIL_PORT=int(os.getenv("MAIL_PORT", "587")),
-    MAIL_STARTTLS=os.getenv("MAIL_STARTTLS", "True").lower() == "true",
-    MAIL_SSL_TLS=os.getenv("MAIL_SSL_TLS", "False").lower() == "true",
-    USE_CREDENTIALS=True,
+# ============================================================
+# EMAIL CONFIGURATION
+# ============================================================
+
+MAIL_USERNAME = os.getenv("MAIL_USERNAME")
+MAIL_PASSWORD = os.getenv("MAIL_PASSWORD")
+MAIL_FROM = os.getenv("MAIL_FROM")
+MAIL_SERVER = os.getenv("MAIL_SERVER")
+
+MAIL_PORT = int(
+    os.getenv("MAIL_PORT", "587")
 )
 
+MAIL_STARTTLS = (
+    os.getenv("MAIL_STARTTLS", "True").lower() == "true"
+)
+
+MAIL_SSL_TLS = (
+    os.getenv("MAIL_SSL_TLS", "False").lower() == "true"
+)
+
+
+mail_config = ConnectionConfig(
+    MAIL_USERNAME=MAIL_USERNAME,
+    MAIL_PASSWORD=MAIL_PASSWORD,
+    MAIL_FROM=MAIL_FROM,
+    MAIL_SERVER=MAIL_SERVER,
+    MAIL_PORT=MAIL_PORT,
+
+    MAIL_STARTTLS=MAIL_STARTTLS,
+    MAIL_SSL_TLS=MAIL_SSL_TLS,
+
+    USE_CREDENTIALS=True,
+
+    # Give SMTP enough time to respond.
+    TIMEOUT=30,
+)
+
+
+# ============================================================
+# SEND VERIFICATION EMAIL
+# ============================================================
 
 async def send_verification_email(
     email: str,
     code: str,
 ):
+
     message = MessageSchema(
         subject="SocialPilot Email Verification",
-        recipients=[email],
+
+        recipients=[
+            email
+        ],
+
         body=f"""
 Hello,
 
@@ -42,9 +84,14 @@ If you did not create a SocialPilot account, please ignore this email.
 Regards,
 SocialPilot Team
 """,
+
         subtype=MessageType.plain,
     )
 
-    fast_mail = FastMail(mail_config)
+    fast_mail = FastMail(
+        mail_config
+    )
 
-    await fast_mail.send_message(message)
+    await fast_mail.send_message(
+        message
+    )

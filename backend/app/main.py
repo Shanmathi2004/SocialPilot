@@ -2,24 +2,23 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.routes.auth import router as auth_router
+from app.routes.users import router as users_router
 
 
 app = FastAPI(
     title="SocialPilot API",
-    description="SocialPilot Social Media Scheduler Backend",
     version="1.0.0",
 )
 
 
-# ---------------------------------------------------------
+# ============================================================
 # CORS
-# ---------------------------------------------------------
+# ============================================================
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:3000",
-        "http://127.0.0.1:3000",
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -27,28 +26,34 @@ app.add_middleware(
 )
 
 
-# ---------------------------------------------------------
-# Routes
-# ---------------------------------------------------------
+# ============================================================
+# ROUTERS
+# ============================================================
 
 app.include_router(auth_router)
+app.include_router(users_router)
 
 
-# ---------------------------------------------------------
-# Basic endpoints
-# ---------------------------------------------------------
+# ============================================================
+# ROOT
+# ============================================================
 
 @app.get("/")
 def root():
+
     return {
         "message": "Welcome to SocialPilot"
     }
 
 
+# ============================================================
+# HEALTH
+# ============================================================
+
 @app.get("/api/health")
-def health_check():
+def health():
+
     return {
         "status": "healthy",
-        "service": "SocialPilot Backend"
+        "service": "SocialPilot Backend",
     }
-

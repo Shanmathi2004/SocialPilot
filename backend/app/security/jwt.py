@@ -1,55 +1,68 @@
 from datetime import datetime, timedelta, timezone
-
-from jose import JWTError, jwt
-from dotenv import load_dotenv
 import os
+
+from dotenv import load_dotenv
+from jose import jwt
 
 
 load_dotenv()
 
 
-JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY")
-JWT_ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
-JWT_ACCESS_TOKEN_EXPIRE_MINUTES = int(
-    os.getenv("JWT_ACCESS_TOKEN_EXPIRE_MINUTES", "60")
+# ============================================================
+# JWT SETTINGS
+# ============================================================
+
+SECRET_KEY = os.getenv(
+    "JWT_SECRET_KEY",
+    "socialpilot-development-secret-key-change-this",
+)
+
+ALGORITHM = os.getenv(
+    "JWT_ALGORITHM",
+    "HS256",
+)
+
+ACCESS_TOKEN_EXPIRE_MINUTES = int(
+    os.getenv(
+        "ACCESS_TOKEN_EXPIRE_MINUTES",
+        "60",
+    )
 )
 
 
-def create_access_token(data: dict) -> str:
-    """
-    Create a JWT access token.
-    """
+# ============================================================
+# CREATE ACCESS TOKEN
+# ============================================================
 
-    to_encode = data.copy()
+def create_access_token(data: dict) -> str:
+
+    payload = data.copy()
 
     expire = datetime.now(timezone.utc) + timedelta(
-        minutes=JWT_ACCESS_TOKEN_EXPIRE_MINUTES
+        minutes=ACCESS_TOKEN_EXPIRE_MINUTES
     )
 
-    to_encode.update({
-        "exp": expire,
-    })
+    payload["exp"] = expire
 
-    return jwt.encode(
-        to_encode,
-        JWT_SECRET_KEY,
-        algorithm=JWT_ALGORITHM,
+    token = jwt.encode(
+        payload,
+        SECRET_KEY,
+        algorithm=ALGORITHM,
     )
 
+    return token
 
-def decode_access_token(token: str) -> dict | None:
-    """
-    Decode and validate a JWT access token.
-    """
 
-    try:
-        payload = jwt.decode(
-            token,
-            JWT_SECRET_KEY,
-            algorithms=[JWT_ALGORITHM],
-        )
+# ============================================================
+# DECODE ACCESS TOKEN
+# ============================================================
 
-        return payload
+def decode_access_token(token: str) -> dict:
 
-    except JWTError:
-        return None
+    payload = jwt.decode(
+        token,
+        SECRET_KEY,
+        algorithms=[ALGORITHM],
+    )
+
+    return payload
