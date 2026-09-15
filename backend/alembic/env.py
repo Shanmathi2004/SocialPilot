@@ -8,6 +8,8 @@ from alembic import context
 from app.database.connection import Base
 from app.models.user import User
 from app.models.email_verification import EmailVerification
+from app.models.social_account import SocialAccount
+from app.models.post import Post
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config

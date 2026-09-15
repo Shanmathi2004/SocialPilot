@@ -1,3 +1,4 @@
+from sqlalchemy.orm import relationship
 from sqlalchemy import Boolean, Column, DateTime, Integer, String
 from sqlalchemy.sql import func
 
@@ -44,4 +45,14 @@ class User(Base):
         DateTime(timezone=True),
         server_default=func.now(),
         nullable=False
+    )
+    social_accounts = relationship(
+    "SocialAccount",
+    back_populates="user",
+    cascade="all, delete-orphan",
+)
+    posts = relationship(
+        "Post",
+        back_populates="user",
+        cascade="all, delete-orphan",
     )

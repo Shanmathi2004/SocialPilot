@@ -3,13 +3,15 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.routes.auth import router as auth_router
 from app.routes.users import router as users_router
-
+from app.routes.social_accounts import router as social_accounts_router
+from app.social.instagram import router as instagram_router
+from app.routes.posts import router as posts_router
 
 app = FastAPI(
     title="SocialPilot API",
     version="1.0.0",
 )
-
+app.include_router(instagram_router)
 
 # ============================================================
 # CORS
@@ -32,8 +34,8 @@ app.add_middleware(
 
 app.include_router(auth_router)
 app.include_router(users_router)
-
-
+app.include_router(social_accounts_router)
+app.include_router(posts_router)
 # ============================================================
 # ROOT
 # ============================================================

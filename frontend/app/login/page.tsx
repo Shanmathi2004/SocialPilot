@@ -82,7 +82,7 @@ export default function LoginPage() {
       /*
        * Send the user to the home page.
        */
-      router.push("/");
+      router.push("/dashboard");
 
     } catch (error) {
       setError(
