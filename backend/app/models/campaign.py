@@ -1,21 +1,13 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import (
-    Column,
-    Integer,
-    String,
-    Text,
-    DateTime,
-    ForeignKey,
-    Boolean,
-)
+from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey
 from sqlalchemy.orm import relationship
 
 from app.database.connection import Base
 
 
-class Post(Base):
-    __tablename__ = "posts"
+class Campaign(Base):
+    __tablename__ = "campaigns"
 
     id = Column(
         Integer,
@@ -30,19 +22,12 @@ class Post(Base):
         index=True,
     )
 
-    campaign_id = Column(
-        Integer,
-        ForeignKey("campaigns.id", ondelete="SET NULL"),
-        nullable=True,
-        index=True,
-    )
-
-    content = Column(
-        Text,
+    name = Column(
+        String(255),
         nullable=False,
     )
 
-    media_url = Column(
+    description = Column(
         Text,
         nullable=True,
     )
@@ -53,23 +38,12 @@ class Post(Base):
         default="draft",
     )
 
-    scheduled_at = Column(
+    start_date = Column(
         DateTime(timezone=True),
         nullable=True,
     )
 
-    is_recurring = Column(
-        Boolean,
-        nullable=False,
-        default=False,
-    )
-
-    recurrence_type = Column(
-        String(50),
-        nullable=True,
-    )
-
-    recurrence_end_date = Column(
+    end_date = Column(
         DateTime(timezone=True),
         nullable=True,
     )
@@ -89,16 +63,10 @@ class Post(Base):
 
     user = relationship(
         "User",
-        back_populates="posts",
+        back_populates="campaigns",
     )
 
-    campaign = relationship(
-        "Campaign",
-        back_populates="posts",
-    )
-
-    publishing_logs = relationship(
-        "PublishingLog",
-        back_populates="post",
-        cascade="all, delete-orphan",
+    posts = relationship(
+        "Post",
+        back_populates="campaign",
     )

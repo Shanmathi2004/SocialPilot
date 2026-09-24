@@ -6,6 +6,10 @@ from app.routes.users import router as users_router
 from app.routes.social_accounts import router as social_accounts_router
 from app.social.instagram import router as instagram_router
 from app.routes.posts import router as posts_router
+from app.routes.publishing_logs import router as publishing_logs_router
+from app.routes.publishing import router as publishing_router
+from app.routes.publishing_queue import router as publishing_queue_router
+from app.routes.campaigns import router as campaigns_router
 
 app = FastAPI(
     title="SocialPilot API",
@@ -36,6 +40,10 @@ app.include_router(auth_router)
 app.include_router(users_router)
 app.include_router(social_accounts_router)
 app.include_router(posts_router)
+app.include_router(publishing_logs_router)
+app.include_router(publishing_router)
+app.include_router(publishing_queue_router)
+app.include_router(campaigns_router)
 # ============================================================
 # ROOT
 # ============================================================

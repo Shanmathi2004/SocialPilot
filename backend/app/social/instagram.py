@@ -23,7 +23,7 @@ INSTAGRAM_APP_SECRET = os.getenv("INSTAGRAM_APP_SECRET")
 INSTAGRAM_APP_ID = "1065297846368970"
 
 INSTAGRAM_REDIRECT_URI = (
-    "https://looksmart-volunteers-cooler-finding.trycloudflare.com/"
+    "https://pays-unsigned-giants-here.trycloudflare.com/"
     "api/social/instagram/callback"
 )
 
