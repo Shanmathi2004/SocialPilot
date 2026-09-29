@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState } from "react";
@@ -19,7 +20,10 @@ export default function SocialAccountsPage() {
   const [accounts, setAccounts] = useState<SocialAccount[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [disconnectingId, setDisconnectingId] = useState<number | null>(null);
+  const [connecting, setConnecting] = useState(false);
+  const [disconnectingId, setDisconnectingId] = useState<number | null>(
+    null
+  );
 
   useEffect(() => {
     const token = localStorage.getItem("access_token");
@@ -34,12 +38,17 @@ export default function SocialAccountsPage() {
 
   const loadAccounts = async (token: string) => {
     try {
-      const response = await fetch(`${API_URL}/api/social-accounts`, {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      setError("");
+
+      const response = await fetch(
+        `${API_URL}/api/social-accounts`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
 
       if (response.status === 401) {
         localStorage.removeItem("access_token");
@@ -51,18 +60,28 @@ export default function SocialAccountsPage() {
       if (!response.ok) {
         throw new Error("Failed to load social accounts.");
       }
+
       const data = await response.json();
 
-console.log("Social accounts API response:", data);
+      console.log("Social accounts API response:", data);
 
-if (Array.isArray(data)) {
-  setAccounts(data);
-} else if (Array.isArray(data.accounts)) {
-  setAccounts(data.accounts);
-} else {
-  setAccounts([]);
-}
-   
+      if (Array.isArray(data)) {
+        setAccounts(
+          data.filter(
+            (account: SocialAccount) =>
+              account.status?.toLowerCase() === "connected"
+          )
+        );
+      } else if (Array.isArray(data.accounts)) {
+        setAccounts(
+          data.accounts.filter(
+            (account: SocialAccount) =>
+              account.status?.toLowerCase() === "connected"
+          )
+        );
+      } else {
+        setAccounts([]);
+      }
     } catch (error) {
       console.error(error);
       setError("Unable to load social accounts.");
@@ -72,6 +91,9 @@ if (Array.isArray(data)) {
   };
 
   const connectInstagram = async () => {
+    setError("");
+    setConnecting(true);
+
     try {
       const token = localStorage.getItem("access_token");
 
@@ -80,25 +102,67 @@ if (Array.isArray(data)) {
         return;
       }
 
-      const response = await fetch(`${API_URL}/api/social/instagram/login`, {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      /*
+       * IMPORTANT:
+       * We tell the backend to return to the Social Accounts page
+       * after Instagram authorization is completed.
+       */
+      const response = await fetch(
+        `${API_URL}/api/social/instagram/login?return_to=/dashboard/social-accounts`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (response.status === 401) {
+        localStorage.removeItem("access_token");
+        localStorage.removeItem("user");
+        router.replace("/login");
+        return;
+      }
 
       if (!response.ok) {
-        throw new Error("Unable to start Instagram connection.");
+        const data = await response.json().catch(() => null);
+
+        throw new Error(
+          data?.detail ||
+            "Unable to start Instagram connection."
+        );
       }
 
       const data = await response.json();
 
-      if (data.login_url) {
-        window.location.href = data.login_url;
+      if (!data.login_url) {
+        throw new Error(
+          "Instagram login URL was not returned."
+        );
       }
+
+      /*
+       * Send the user to Instagram.
+       *
+       * After authorization:
+       *
+       * Instagram
+       *      ↓
+       * FastAPI callback
+       *      ↓
+       * /dashboard/social-accounts
+       */
+      window.location.href = data.login_url;
     } catch (error) {
-      console.error(error);
-      setError("Unable to connect Instagram.");
+      console.error("Instagram connection error:", error);
+
+      setError(
+        error instanceof Error
+          ? error.message
+          : "Unable to connect Instagram."
+      );
+
+      setConnecting(false);
     }
   };
 
@@ -110,6 +174,7 @@ if (Array.isArray(data)) {
       return;
     }
 
+    setError("");
     setDisconnectingId(accountId);
 
     try {
@@ -131,15 +196,27 @@ if (Array.isArray(data)) {
       }
 
       if (!response.ok) {
-        throw new Error("Failed to disconnect account.");
+        const data = await response.json().catch(() => null);
+
+        throw new Error(
+          data?.detail ||
+            "Failed to disconnect account."
+        );
       }
 
       setAccounts((currentAccounts) =>
-        currentAccounts.filter((account) => account.id !== accountId)
+        currentAccounts.filter(
+          (account) => account.id !== accountId
+        )
       );
     } catch (error) {
       console.error(error);
-      setError("Unable to disconnect account.");
+
+      setError(
+        error instanceof Error
+          ? error.message
+          : "Unable to disconnect account."
+      );
     } finally {
       setDisconnectingId(null);
     }
@@ -149,17 +226,23 @@ if (Array.isArray(data)) {
     switch (platform.toLowerCase()) {
       case "instagram":
         return "📸";
+
       case "facebook":
         return "📘";
+
       case "linkedin":
         return "💼";
+
       case "youtube":
         return "▶️";
+
       case "twitter":
       case "x":
         return "𝕏";
+
       case "pinterest":
         return "📌";
+
       default:
         return "📱";
     }
@@ -167,6 +250,8 @@ if (Array.isArray(data)) {
 
   return (
     <div className="mx-auto max-w-6xl">
+      {/* PAGE HEADER */}
+
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-slate-900">
           Social Accounts
@@ -177,15 +262,25 @@ if (Array.isArray(data)) {
         </p>
       </div>
 
+      {/* ERROR */}
+
       {error && (
         <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4">
-          <p className="text-sm text-red-700">{error}</p>
+          <p className="text-sm text-red-700">
+            {error}
+          </p>
         </div>
       )}
 
+      {/* PLATFORM CARDS */}
+
       <div className="mb-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        {/* INSTAGRAM */}
+
         <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="text-3xl">📸</div>
+          <div className="text-3xl">
+            📸
+          </div>
 
           <h2 className="mt-4 text-lg font-semibold text-slate-900">
             Instagram
@@ -197,14 +292,21 @@ if (Array.isArray(data)) {
 
           <button
             onClick={connectInstagram}
-            className="mt-5 w-full rounded-lg bg-slate-900 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-800"
+            disabled={connecting}
+            className="mt-5 w-full rounded-lg bg-slate-900 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            Connect Instagram
+            {connecting
+              ? "Connecting..."
+              : "Connect Instagram"}
           </button>
         </div>
 
+        {/* FACEBOOK */}
+
         <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="text-3xl">📘</div>
+          <div className="text-3xl">
+            📘
+          </div>
 
           <h2 className="mt-4 text-lg font-semibold text-slate-900">
             Facebook
@@ -222,8 +324,12 @@ if (Array.isArray(data)) {
           </button>
         </div>
 
+        {/* LINKEDIN */}
+
         <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="text-3xl">💼</div>
+          <div className="text-3xl">
+            💼
+          </div>
 
           <h2 className="mt-4 text-lg font-semibold text-slate-900">
             LinkedIn
@@ -241,8 +347,12 @@ if (Array.isArray(data)) {
           </button>
         </div>
 
+        {/* YOUTUBE */}
+
         <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="text-3xl">▶️</div>
+          <div className="text-3xl">
+            ▶️
+          </div>
 
           <h2 className="mt-4 text-lg font-semibold text-slate-900">
             YouTube
@@ -260,8 +370,12 @@ if (Array.isArray(data)) {
           </button>
         </div>
 
+        {/* X */}
+
         <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="text-3xl">𝕏</div>
+          <div className="text-3xl">
+            𝕏
+          </div>
 
           <h2 className="mt-4 text-lg font-semibold text-slate-900">
             X
@@ -279,8 +393,12 @@ if (Array.isArray(data)) {
           </button>
         </div>
 
+        {/* PINTEREST */}
+
         <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="text-3xl">📌</div>
+          <div className="text-3xl">
+            📌
+          </div>
 
           <h2 className="mt-4 text-lg font-semibold text-slate-900">
             Pinterest
@@ -298,6 +416,8 @@ if (Array.isArray(data)) {
           </button>
         </div>
       </div>
+
+      {/* CONNECTED ACCOUNTS */}
 
       <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
         <div className="border-b border-slate-200 px-6 py-5">
@@ -318,7 +438,9 @@ if (Array.isArray(data)) {
           </div>
         ) : accounts.length === 0 ? (
           <div className="p-10 text-center">
-            <div className="text-4xl">📱</div>
+            <div className="text-4xl">
+              📱
+            </div>
 
             <h3 className="mt-4 text-lg font-semibold text-slate-900">
               No accounts connected
@@ -358,8 +480,12 @@ if (Array.isArray(data)) {
                 </div>
 
                 <button
-                  onClick={() => disconnectAccount(account.id)}
-                  disabled={disconnectingId === account.id}
+                  onClick={() =>
+                    disconnectAccount(account.id)
+                  }
+                  disabled={
+                    disconnectingId === account.id
+                  }
                   className="rounded-lg border border-red-200 px-4 py-2.5 text-sm font-semibold text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {disconnectingId === account.id

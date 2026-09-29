@@ -1,85 +1,151 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text
+from sqlalchemy import (
+    Column,
+    Integer,
+    String,
+    DateTime,
+    ForeignKey,
+    Text,
+)
+
 from sqlalchemy.orm import relationship
 
 from app.database.connection import Base
+
+from app.models.post import post_social_accounts
 
 
 class SocialAccount(Base):
     __tablename__ = "social_accounts"
 
-    # Primary key
-    id = Column(Integer, primary_key=True, index=True)
+    # ---------------------------------------------------------
+    # PRIMARY KEY
+    # ---------------------------------------------------------
 
-    # The SocialPilot user who owns this social account
+    id = Column(
+        Integer,
+        primary_key=True,
+        index=True,
+    )
+
+    # ---------------------------------------------------------
+    # OWNER
+    # ---------------------------------------------------------
+
     user_id = Column(
         Integer,
-        ForeignKey("users.id", ondelete="CASCADE"),
+        ForeignKey(
+            "users.id",
+            ondelete="CASCADE",
+        ),
         nullable=False,
         index=True,
     )
 
-    # Platform name
-    # Example: instagram, facebook, linkedin, youtube, x
+    # ---------------------------------------------------------
+    # PLATFORM
+    # ---------------------------------------------------------
+
     platform = Column(
         String(50),
         nullable=False,
         index=True,
     )
 
-    # ID provided by the social media platform
+    # ---------------------------------------------------------
+    # PLATFORM ACCOUNT ID
+    # ---------------------------------------------------------
+
     platform_user_id = Column(
         String(255),
         nullable=False,
     )
 
-    # Username/page/channel name from the platform
+    # ---------------------------------------------------------
+    # USERNAME
+    # ---------------------------------------------------------
+
     platform_username = Column(
         String(255),
         nullable=True,
     )
 
-    # Display name
+    # ---------------------------------------------------------
+    # DISPLAY NAME
+    # ---------------------------------------------------------
+
     display_name = Column(
         String(255),
         nullable=True,
     )
 
-    # OAuth access token
+    # ---------------------------------------------------------
+    # ACCESS TOKEN
+    # ---------------------------------------------------------
+
     access_token = Column(
         Text,
         nullable=False,
     )
 
-    # OAuth refresh token
+    # ---------------------------------------------------------
+    # REFRESH TOKEN
+    # ---------------------------------------------------------
+
     refresh_token = Column(
         Text,
         nullable=True,
     )
 
-    # When the access token expires
+    # ---------------------------------------------------------
+    # TOKEN EXPIRY
+    # ---------------------------------------------------------
+
     token_expires_at = Column(
         DateTime(timezone=True),
         nullable=True,
     )
 
-    # Account connection status
-    # connected / disconnected / expired
+    # ---------------------------------------------------------
+    # STATUS
+    # ---------------------------------------------------------
+
     status = Column(
         String(50),
         nullable=False,
         default="connected",
     )
 
-    # Created time
+    # ---------------------------------------------------------
+    # CREATED
+    # ---------------------------------------------------------
+    followers_count = Column(
+        Integer,
+        nullable=False,
+        default=0,
+    )
+
+    previous_followers_count = Column(
+        Integer,
+        nullable=False,
+        default=0,
+    )
+
+    followers_updated_at = Column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
     created_at = Column(
         DateTime(timezone=True),
         nullable=False,
         default=lambda: datetime.now(timezone.utc),
     )
 
-    # Updated time
+    # ---------------------------------------------------------
+    # UPDATED
+    # ---------------------------------------------------------
+
     updated_at = Column(
         DateTime(timezone=True),
         nullable=False,
@@ -87,8 +153,21 @@ class SocialAccount(Base):
         onupdate=lambda: datetime.now(timezone.utc),
     )
 
-    # Relationship with User
+    # ---------------------------------------------------------
+    # USER RELATIONSHIP
+    # ---------------------------------------------------------
+
     user = relationship(
         "User",
+        back_populates="social_accounts",
+    )
+
+    # ---------------------------------------------------------
+    # POST RELATIONSHIP
+    # ---------------------------------------------------------
+
+    posts = relationship(
+        "Post",
+        secondary=post_social_accounts,
         back_populates="social_accounts",
     )

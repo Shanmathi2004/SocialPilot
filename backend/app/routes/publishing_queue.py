@@ -22,9 +22,16 @@ def get_publishing_queue(
         db.query(Post)
         .filter(
             Post.user_id == current_user.id,
-            Post.status.in_(["scheduled", "queued", "processing"]),
+            Post.status.in_(
+                [
+                    "draft",
+                    "scheduled",
+                    "queued",
+                    "processing",
+                ]
+            ),
         )
-        .order_by(Post.scheduled_at.asc())
+        .order_by(Post.created_at.desc())
         .all()
     )
 

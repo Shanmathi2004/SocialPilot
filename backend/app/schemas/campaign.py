@@ -10,7 +10,8 @@ class CampaignCreate(BaseModel):
     status: str = "draft"
     start_date: Optional[datetime] = None
     end_date: Optional[datetime] = None
-
+    budget: float = 0
+    revenue: float = 0
 
 class CampaignResponse(BaseModel):
     id: int

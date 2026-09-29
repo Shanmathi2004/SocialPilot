@@ -210,6 +210,53 @@ export default function DashboardPage() {
 
     loadDashboard();
   }, [router]);
+    // ---------------------------------------------
+  // BACKGROUND PUBLISHING
+  // ---------------------------------------------
+
+  const publishInBackground = async (postId: number) => {
+    const token = localStorage.getItem("access_token");
+
+    if (!token) {
+      router.replace("/login");
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `${API_URL}/api/publishing/background/${postId}`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        alert(
+          data.detail ||
+            "Failed to start background publishing."
+        );
+        return;
+      }
+
+      alert(
+        "Publishing task started in the background."
+      );
+    } catch (error) {
+      console.error(
+        "Background publishing error:",
+        error
+      );
+
+      alert(
+        "Unable to start background publishing."
+      );
+    }
+  };
 
   // ---------------------------------------------
   // COUNTS
@@ -625,7 +672,14 @@ export default function DashboardPage() {
                           ).toLocaleString()}
                         </p>
                       )}
-
+                                            <button
+                        onClick={() =>
+                          publishInBackground(post.id)
+                        }
+                        className="mt-3 rounded-lg bg-slate-900 px-3 py-2 text-xs font-medium text-white hover:bg-slate-800"
+                      >
+                        Publish in Background
+                      </button>
                     </div>
 
                     <span

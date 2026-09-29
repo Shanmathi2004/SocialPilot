@@ -1,7 +1,10 @@
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+
+from datetime import datetime, timezone
+
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from app.database.connection import SessionLocal, get_db
+from app.database.connection import get_db
 from app.models.post import Post
 from app.models.user import User
 from app.security.dependencies import get_current_user
@@ -14,30 +17,18 @@ router = APIRouter(
 )
 
 
-def run_publishing_task(
-    post_id: int,
-    platform: str,
-):
-    db = SessionLocal()
-
-    try:
-        publish_post(
-            db=db,
-            post_id=post_id,
-            platform=platform,
-        )
-    finally:
-        db.close()
-
+# ============================================================
+# PUBLISH POST NOW
+# ============================================================
 
 @router.post("/publish/{post_id}")
-def publish_post_in_background(
+def publish_post_now(
     post_id: int,
-    background_tasks: BackgroundTasks,
-    platform: str = "instagram",
+    platform: str | None = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    # Find the post belonging to the logged-in user
     post = (
         db.query(Post)
         .filter(
@@ -53,20 +44,77 @@ def publish_post_in_background(
             detail="Post not found.",
         )
 
+    # Check whether the post can be published
     if post.status not in ["scheduled", "draft"]:
         raise HTTPException(
             status_code=400,
             detail="Only draft or scheduled posts can be published.",
         )
 
-    background_tasks.add_task(
-        run_publishing_task,
-        post.id,
-        platform,
+    # Publish the post immediately
+    result = publish_post(
+        db=db,
+        post_id=post.id,
+        platform=platform,
     )
 
+    # Return the actual publishing error
+    if not result.get("success"):
+        raise HTTPException(
+            status_code=400,
+            detail=result.get(
+                "message",
+                "Publishing failed.",
+            ),
+        )
+
+    return result
+
+
+# ============================================================
+# PROCESS SCHEDULED POSTS
+# ============================================================
+
+@router.post("/process-scheduled")
+def process_scheduled_posts(
+    db: Session = Depends(get_db),
+):
+    """
+    Find scheduled posts whose scheduled time has arrived
+    and publish them.
+    """
+
+    now = datetime.now(timezone.utc)
+
+    scheduled_posts = (
+        db.query(Post)
+        .filter(
+            Post.status == "scheduled",
+            Post.scheduled_at <= now,
+        )
+        .all()
+    )
+
+    results = []
+
+    for post in scheduled_posts:
+
+        result = publish_post(
+            db=db,
+            post_id=post.id,
+            platform=None,
+        )
+
+        results.append(
+            {
+                "post_id": post.id,
+                "result": result,
+            }
+        )
+
     return {
-        "message": "Publishing task added to the background queue.",
-        "post_id": post.id,
-        "platform": platform,
+        "success": True,
+        "processed_count": len(scheduled_posts),
+        "results": results,
     }
+

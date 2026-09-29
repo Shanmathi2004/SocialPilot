@@ -1,6 +1,13 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey
+from sqlalchemy import (
+    Column,
+    Integer,
+    String,
+    Text,
+    DateTime,
+    ForeignKey,
+)
 from sqlalchemy.orm import relationship
 
 from app.database.connection import Base
@@ -22,9 +29,26 @@ class PublishingLog(Base):
         index=True,
     )
 
+    social_account_id = Column(
+        Integer,
+        ForeignKey("social_accounts.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
+
     platform = Column(
         String(50),
         nullable=False,
+    )
+
+    # --------------------------------------------------
+    # Platform media ID
+    # --------------------------------------------------
+
+    platform_media_id = Column(
+        String(255),
+        nullable=True,
+        index=True,
     )
 
     status = Column(
@@ -42,6 +66,40 @@ class PublishingLog(Base):
         nullable=True,
     )
 
+    # --------------------------------------------------
+    # Engagement metrics
+    # --------------------------------------------------
+
+    likes = Column(
+        Integer,
+        nullable=True,
+        default=0,
+    )
+
+    comments = Column(
+        Integer,
+        nullable=True,
+        default=0,
+    )
+
+    shares = Column(
+        Integer,
+        nullable=True,
+        default=0,
+    )
+
+    reach = Column(
+        Integer,
+        nullable=True,
+        default=0,
+    )
+
+    views = Column(
+        Integer,
+        nullable=True,
+        default=0,
+    )
+
     created_at = Column(
         DateTime(timezone=True),
         nullable=False,
@@ -51,4 +109,8 @@ class PublishingLog(Base):
     post = relationship(
         "Post",
         back_populates="publishing_logs",
+    )
+
+    social_account = relationship(
+        "SocialAccount",
     )
