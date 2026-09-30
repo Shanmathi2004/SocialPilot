@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useState } from "react";
@@ -14,6 +13,59 @@ type SocialAccount = {
   status: string;
 };
 
+type Platform = {
+  name: string;
+  key: string;
+  icon: string;
+  description: string;
+  available: boolean;
+};
+
+const platforms: Platform[] = [
+  {
+    name: "Instagram",
+    key: "instagram",
+    icon: "📸",
+    description: "Connect your Instagram Business account.",
+    available: true,
+  },
+  {
+    name: "Facebook",
+    key: "facebook",
+    icon: "📘",
+    description: "Connect your Facebook Page.",
+    available: false,
+  },
+  {
+    name: "LinkedIn",
+    key: "linkedin",
+    icon: "💼",
+    description: "Connect your LinkedIn profile or company page.",
+    available: false,
+  },
+  {
+    name: "YouTube",
+    key: "youtube",
+    icon: "▶️",
+    description: "Connect your YouTube channel.",
+    available: false,
+  },
+  {
+    name: "X",
+    key: "x",
+    icon: "𝕏",
+    description: "Connect your X account.",
+    available: false,
+  },
+  {
+    name: "Pinterest",
+    key: "pinterest",
+    icon: "📌",
+    description: "Connect your Pinterest business account.",
+    available: false,
+  },
+];
+
 export default function SocialAccountsPage() {
   const router = useRouter();
 
@@ -21,12 +73,18 @@ export default function SocialAccountsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [connecting, setConnecting] = useState(false);
-  const [disconnectingId, setDisconnectingId] = useState<number | null>(
-    null
-  );
+  const [connectingPlatform, setConnectingPlatform] =
+    useState("");
+  const [disconnectingId, setDisconnectingId] =
+    useState<number | null>(null);
+
+  // --------------------------------------------------
+  // LOAD CONNECTED ACCOUNTS
+  // --------------------------------------------------
 
   useEffect(() => {
-    const token = localStorage.getItem("access_token");
+    const token =
+      localStorage.getItem("access_token");
 
     if (!token) {
       router.replace("/login");
@@ -51,32 +109,42 @@ export default function SocialAccountsPage() {
       );
 
       if (response.status === 401) {
-        localStorage.removeItem("access_token");
+        localStorage.removeItem(
+          "access_token"
+        );
         localStorage.removeItem("user");
+
         router.replace("/login");
         return;
       }
 
       if (!response.ok) {
-        throw new Error("Failed to load social accounts.");
+        throw new Error(
+          "Failed to load social accounts."
+        );
       }
 
       const data = await response.json();
 
-      console.log("Social accounts API response:", data);
+      console.log(
+        "Social accounts API response:",
+        data
+      );
 
       if (Array.isArray(data)) {
         setAccounts(
           data.filter(
             (account: SocialAccount) =>
-              account.status?.toLowerCase() === "connected"
+              account.status?.toLowerCase() ===
+              "connected"
           )
         );
       } else if (Array.isArray(data.accounts)) {
         setAccounts(
           data.accounts.filter(
             (account: SocialAccount) =>
-              account.status?.toLowerCase() === "connected"
+              account.status?.toLowerCase() ===
+              "connected"
           )
         );
       } else {
@@ -84,29 +152,33 @@ export default function SocialAccountsPage() {
       }
     } catch (error) {
       console.error(error);
-      setError("Unable to load social accounts.");
+
+      setError(
+        "Unable to load social accounts."
+      );
     } finally {
       setLoading(false);
     }
   };
 
+  // --------------------------------------------------
+  // INSTAGRAM CONNECTION
+  // --------------------------------------------------
+
   const connectInstagram = async () => {
     setError("");
     setConnecting(true);
+    setConnectingPlatform("instagram");
 
     try {
-      const token = localStorage.getItem("access_token");
+      const token =
+        localStorage.getItem("access_token");
 
       if (!token) {
         router.replace("/login");
         return;
       }
 
-      /*
-       * IMPORTANT:
-       * We tell the backend to return to the Social Accounts page
-       * after Instagram authorization is completed.
-       */
       const response = await fetch(
         `${API_URL}/api/social/instagram/login?return_to=/dashboard/social-accounts`,
         {
@@ -118,14 +190,18 @@ export default function SocialAccountsPage() {
       );
 
       if (response.status === 401) {
-        localStorage.removeItem("access_token");
+        localStorage.removeItem(
+          "access_token"
+        );
         localStorage.removeItem("user");
+
         router.replace("/login");
         return;
       }
 
       if (!response.ok) {
-        const data = await response.json().catch(() => null);
+        const data =
+          await response.json().catch(() => null);
 
         throw new Error(
           data?.detail ||
@@ -141,20 +217,12 @@ export default function SocialAccountsPage() {
         );
       }
 
-      /*
-       * Send the user to Instagram.
-       *
-       * After authorization:
-       *
-       * Instagram
-       *      ↓
-       * FastAPI callback
-       *      ↓
-       * /dashboard/social-accounts
-       */
       window.location.href = data.login_url;
     } catch (error) {
-      console.error("Instagram connection error:", error);
+      console.error(
+        "Instagram connection error:",
+        error
+      );
 
       setError(
         error instanceof Error
@@ -163,11 +231,56 @@ export default function SocialAccountsPage() {
       );
 
       setConnecting(false);
+      setConnectingPlatform("");
     }
   };
 
-  const disconnectAccount = async (accountId: number) => {
-    const token = localStorage.getItem("access_token");
+  // --------------------------------------------------
+  // OTHER PLATFORM CONNECTION
+  // --------------------------------------------------
+
+  const connectPlatform = (
+    platformName: string
+  ) => {
+    setError("");
+
+    setConnectingPlatform(
+      platformName.toLowerCase()
+    );
+
+    setTimeout(() => {
+      setConnectingPlatform("");
+
+      setError(
+        `${platformName} connection is coming soon. The Connect button is ready and will be enabled when the ${platformName} integration is added.`
+      );
+    }, 250);
+  };
+
+  // --------------------------------------------------
+  // MAIN CONNECT HANDLER
+  // --------------------------------------------------
+
+  const handleConnect = async (
+    platform: Platform
+  ) => {
+    if (platform.key === "instagram") {
+      await connectInstagram();
+      return;
+    }
+
+    connectPlatform(platform.name);
+  };
+
+  // --------------------------------------------------
+  // DISCONNECT ACCOUNT
+  // --------------------------------------------------
+
+  const disconnectAccount = async (
+    accountId: number
+  ) => {
+    const token =
+      localStorage.getItem("access_token");
 
     if (!token) {
       router.replace("/login");
@@ -189,14 +302,18 @@ export default function SocialAccountsPage() {
       );
 
       if (response.status === 401) {
-        localStorage.removeItem("access_token");
+        localStorage.removeItem(
+          "access_token"
+        );
         localStorage.removeItem("user");
+
         router.replace("/login");
         return;
       }
 
       if (!response.ok) {
-        const data = await response.json().catch(() => null);
+        const data =
+          await response.json().catch(() => null);
 
         throw new Error(
           data?.detail ||
@@ -206,7 +323,8 @@ export default function SocialAccountsPage() {
 
       setAccounts((currentAccounts) =>
         currentAccounts.filter(
-          (account) => account.id !== accountId
+          (account) =>
+            account.id !== accountId
         )
       );
     } catch (error) {
@@ -222,7 +340,13 @@ export default function SocialAccountsPage() {
     }
   };
 
-  const getPlatformIcon = (platform: string) => {
+  // --------------------------------------------------
+  // PLATFORM ICON
+  // --------------------------------------------------
+
+  const getPlatformIcon = (
+    platform: string
+  ) => {
     switch (platform.toLowerCase()) {
       case "instagram":
         return "📸";
@@ -248,255 +372,319 @@ export default function SocialAccountsPage() {
     }
   };
 
+  // --------------------------------------------------
+  // PAGE
+  // --------------------------------------------------
+
   return (
-    <div className="mx-auto max-w-6xl">
+    <div className="mx-auto max-w-7xl space-y-6 pb-8">
+
       {/* PAGE HEADER */}
 
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-slate-900">
-          Social Accounts
-        </h1>
+      <div className="rounded-2xl border border-slate-200 bg-white px-6 py-6 shadow-sm">
 
-        <p className="mt-2 text-sm text-slate-500">
-          Connect and manage your social media accounts.
-        </p>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+
+          <div>
+            <div className="flex items-center gap-3">
+
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-slate-950 text-xl text-white">
+                🔗
+              </div>
+
+              <div>
+                <h1 className="text-2xl font-bold tracking-tight text-slate-950">
+                  Social Accounts
+                </h1>
+
+                <p className="mt-1 text-sm text-slate-500">
+                  Connect and manage your social media accounts from one place.
+                </p>
+              </div>
+
+            </div>
+          </div>
+
+          <div className="rounded-xl bg-emerald-50 px-4 py-3">
+            <p className="text-xs font-semibold text-emerald-700">
+              {accounts.length} Connected
+            </p>
+
+            <p className="mt-0.5 text-[11px] text-emerald-600">
+              Active social accounts
+            </p>
+          </div>
+
+        </div>
+
       </div>
 
-      {/* ERROR */}
+      {/* ERROR / INFO MESSAGE */}
 
       {error && (
-        <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4">
-          <p className="text-sm text-red-700">
-            {error}
-          </p>
+        <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+
+          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-amber-100 text-sm">
+            ℹ️
+          </div>
+
+          <div>
+            <p className="text-sm font-semibold text-amber-800">
+              Connection information
+            </p>
+
+            <p className="mt-0.5 text-xs leading-5 text-amber-700">
+              {error}
+            </p>
+          </div>
+
         </div>
       )}
 
-      {/* PLATFORM CARDS */}
+      {/* PLATFORM SECTION */}
 
-      <div className="mb-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-        {/* INSTAGRAM */}
+      <div>
 
-        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="text-3xl">
-            📸
+        <div className="mb-3 flex items-end justify-between">
+
+          <div>
+            <h2 className="text-base font-bold text-slate-950">
+              Connect a platform
+            </h2>
+
+            <p className="mt-1 text-xs text-slate-500">
+              Choose a social platform to connect to SocialPilot.
+            </p>
           </div>
 
-          <h2 className="mt-4 text-lg font-semibold text-slate-900">
-            Instagram
-          </h2>
+          <span className="hidden rounded-full bg-slate-100 px-3 py-1 text-[10px] font-semibold text-slate-500 sm:block">
+            1 of 6 available
+          </span>
 
-          <p className="mt-2 text-sm text-slate-500">
-            Connect your Instagram Business account.
-          </p>
-
-          <button
-            onClick={connectInstagram}
-            disabled={connecting}
-            className="mt-5 w-full rounded-lg bg-slate-900 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {connecting
-              ? "Connecting..."
-              : "Connect Instagram"}
-          </button>
         </div>
 
-        {/* FACEBOOK */}
+        {/* PLATFORM CARDS */}
 
-        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="text-3xl">
-            📘
-          </div>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
 
-          <h2 className="mt-4 text-lg font-semibold text-slate-900">
-            Facebook
-          </h2>
+          {platforms.map((platform) => {
+            const isConnecting =
+              connectingPlatform ===
+              platform.key;
 
-          <p className="mt-2 text-sm text-slate-500">
-            Facebook integration will be added next.
-          </p>
+            return (
+              <div
+                key={platform.key}
+                className={`group relative overflow-hidden rounded-2xl border bg-white p-5 shadow-sm transition ${
+                  platform.available
+                    ? "border-slate-200 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md"
+                    : "border-slate-200 hover:border-slate-300 hover:shadow-md"
+                }`}
+              >
 
-          <button
-            disabled
-            className="mt-5 w-full cursor-not-allowed rounded-lg bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-400"
-          >
-            Coming Soon
-          </button>
+                {/* TOP */}
+
+                <div className="flex items-start justify-between">
+
+                  <div
+                    className={`flex h-12 w-12 items-center justify-center rounded-xl text-2xl ${
+                      platform.key === "instagram"
+                        ? "bg-pink-50"
+                        : "bg-slate-100"
+                    }`}
+                  >
+                    {platform.icon}
+                  </div>
+
+                  {platform.available ? (
+                    <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[9px] font-bold text-emerald-700">
+                      Available
+                    </span>
+                  ) : (
+                    <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[9px] font-bold text-slate-500">
+                      Coming Soon
+                    </span>
+                  )}
+
+                </div>
+
+                {/* CONTENT */}
+
+                <div className="mt-4">
+
+                  <h3 className="text-base font-bold text-slate-900">
+                    {platform.name}
+                  </h3>
+
+                  <p className="mt-1.5 min-h-[38px] text-xs leading-5 text-slate-500">
+                    {platform.description}
+                  </p>
+
+                </div>
+
+                {/* BUTTON */}
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    handleConnect(platform)
+                  }
+                  disabled={isConnecting}
+                  className={`mt-5 w-full rounded-xl px-4 py-2.5 text-xs font-bold transition ${
+                    platform.available
+                      ? "bg-slate-950 text-white hover:bg-slate-800"
+                      : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                  } ${
+                    isConnecting
+                      ? "cursor-not-allowed opacity-60"
+                      : ""
+                  }`}
+                >
+                  {isConnecting
+                    ? "Connecting..."
+                    : platform.available
+                      ? `Connect ${platform.name}`
+                      : `Connect ${platform.name}`}
+                </button>
+
+                {!platform.available && (
+                  <p className="mt-2 text-center text-[9px] text-slate-400">
+                    Connection will be enabled soon
+                  </p>
+                )}
+
+              </div>
+            );
+          })}
+
         </div>
 
-        {/* LINKEDIN */}
-
-        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="text-3xl">
-            💼
-          </div>
-
-          <h2 className="mt-4 text-lg font-semibold text-slate-900">
-            LinkedIn
-          </h2>
-
-          <p className="mt-2 text-sm text-slate-500">
-            LinkedIn integration will be added next.
-          </p>
-
-          <button
-            disabled
-            className="mt-5 w-full cursor-not-allowed rounded-lg bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-400"
-          >
-            Coming Soon
-          </button>
-        </div>
-
-        {/* YOUTUBE */}
-
-        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="text-3xl">
-            ▶️
-          </div>
-
-          <h2 className="mt-4 text-lg font-semibold text-slate-900">
-            YouTube
-          </h2>
-
-          <p className="mt-2 text-sm text-slate-500">
-            YouTube integration will be added next.
-          </p>
-
-          <button
-            disabled
-            className="mt-5 w-full cursor-not-allowed rounded-lg bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-400"
-          >
-            Coming Soon
-          </button>
-        </div>
-
-        {/* X */}
-
-        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="text-3xl">
-            𝕏
-          </div>
-
-          <h2 className="mt-4 text-lg font-semibold text-slate-900">
-            X
-          </h2>
-
-          <p className="mt-2 text-sm text-slate-500">
-            X integration will be added next.
-          </p>
-
-          <button
-            disabled
-            className="mt-5 w-full cursor-not-allowed rounded-lg bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-400"
-          >
-            Coming Soon
-          </button>
-        </div>
-
-        {/* PINTEREST */}
-
-        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="text-3xl">
-            📌
-          </div>
-
-          <h2 className="mt-4 text-lg font-semibold text-slate-900">
-            Pinterest
-          </h2>
-
-          <p className="mt-2 text-sm text-slate-500">
-            Pinterest integration will be added next.
-          </p>
-
-          <button
-            disabled
-            className="mt-5 w-full cursor-not-allowed rounded-lg bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-400"
-          >
-            Coming Soon
-          </button>
-        </div>
       </div>
 
       {/* CONNECTED ACCOUNTS */}
 
-      <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
-        <div className="border-b border-slate-200 px-6 py-5">
-          <h2 className="text-lg font-semibold text-slate-900">
-            Connected Accounts
-          </h2>
+      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
 
-          <p className="mt-1 text-sm text-slate-500">
-            Social accounts currently connected to SocialPilot.
-          </p>
+        <div className="flex flex-col gap-2 border-b border-slate-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+
+          <div>
+            <h2 className="text-base font-bold text-slate-950">
+              Connected Accounts
+            </h2>
+
+            <p className="mt-0.5 text-xs text-slate-500">
+              Social accounts currently connected to SocialPilot.
+            </p>
+          </div>
+
+          {accounts.length > 0 && (
+            <span className="w-fit rounded-full bg-emerald-50 px-2.5 py-1 text-[9px] font-bold text-emerald-700">
+              {accounts.length} Active
+            </span>
+          )}
+
         </div>
 
         {loading ? (
-          <div className="p-8 text-center">
-            <p className="text-sm text-slate-500">
+          <div className="p-10 text-center">
+
+            <div className="mx-auto h-7 w-7 animate-spin rounded-full border-2 border-slate-200 border-t-slate-900" />
+
+            <p className="mt-3 text-xs text-slate-500">
               Loading connected accounts...
             </p>
+
           </div>
         ) : accounts.length === 0 ? (
-          <div className="p-10 text-center">
-            <div className="text-4xl">
+          <div className="px-5 py-12 text-center">
+
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-2xl">
               📱
             </div>
 
-            <h3 className="mt-4 text-lg font-semibold text-slate-900">
+            <h3 className="mt-4 text-sm font-bold text-slate-900">
               No accounts connected
             </h3>
 
-            <p className="mt-2 text-sm text-slate-500">
-              Connect Instagram to start managing your social media.
+            <p className="mx-auto mt-1.5 max-w-sm text-xs leading-5 text-slate-500">
+              Connect Instagram now, or connect another platform when its integration becomes available.
             </p>
+
+            <button
+              onClick={connectInstagram}
+              className="mt-4 rounded-xl bg-slate-950 px-4 py-2.5 text-xs font-bold text-white hover:bg-slate-800"
+            >
+              Connect Instagram
+            </button>
+
           </div>
         ) : (
-          <div className="divide-y divide-slate-200">
+          <div className="divide-y divide-slate-100">
+
             {accounts.map((account) => (
               <div
                 key={account.id}
-                className="flex flex-col gap-4 p-6 sm:flex-row sm:items-center sm:justify-between"
+                className="flex flex-col gap-4 px-5 py-4 sm:flex-row sm:items-center sm:justify-between"
               >
-                <div className="flex items-center gap-4">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-2xl">
-                    {getPlatformIcon(account.platform)}
+
+                <div className="flex min-w-0 items-center gap-3">
+
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-xl">
+                    {getPlatformIcon(
+                      account.platform
+                    )}
                   </div>
 
-                  <div>
-                    <h3 className="font-semibold capitalize text-slate-900">
-                      {account.platform}
-                    </h3>
+                  <div className="min-w-0">
 
-                    <p className="text-sm text-slate-500">
+                    <div className="flex items-center gap-2">
+
+                      <h3 className="text-sm font-bold capitalize text-slate-900">
+                        {account.platform}
+                      </h3>
+
+                      <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[8px] font-bold text-emerald-700">
+                        Connected
+                      </span>
+
+                    </div>
+
+                    <p className="mt-0.5 truncate text-xs text-slate-500">
                       {account.display_name ||
                         account.platform_username ||
                         "Connected account"}
                     </p>
 
-                    <span className="mt-1 inline-block rounded-full bg-green-100 px-2.5 py-1 text-xs font-semibold text-green-700">
-                      {account.status}
-                    </span>
                   </div>
+
                 </div>
 
                 <button
                   onClick={() =>
-                    disconnectAccount(account.id)
+                    disconnectAccount(
+                      account.id
+                    )
                   }
                   disabled={
-                    disconnectingId === account.id
+                    disconnectingId ===
+                    account.id
                   }
-                  className="rounded-lg border border-red-200 px-4 py-2.5 text-sm font-semibold text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="rounded-xl border border-red-200 px-4 py-2 text-xs font-bold text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {disconnectingId === account.id
+                  {disconnectingId ===
+                  account.id
                     ? "Disconnecting..."
                     : "Disconnect"}
                 </button>
+
               </div>
             ))}
+
           </div>
         )}
+
       </div>
+
     </div>
   );
 }

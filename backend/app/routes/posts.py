@@ -1,13 +1,17 @@
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from sqlalchemy.orm import Session, joinedload
 
 from app.database.connection import get_db
 from app.models.post import Post
 from app.models.social_account import SocialAccount
 from app.models.user import User
-from app.schemas.post import PostCreate, PostUpdate, PostResponse
+from app.schemas.post import (
+    PostCreate,
+    PostUpdate,
+    PostResponse,
+)
 from app.security.dependencies import get_current_user
 
 
@@ -15,6 +19,27 @@ router = APIRouter(
     prefix="/api/posts",
     tags=["Posts"],
 )
+
+
+# ==========================================================
+# BUILD MEDIA URL
+# ==========================================================
+
+def build_media_url(
+    media_path: str | None,
+    request: Request,
+) -> str | None:
+
+    if not media_path:
+        return None
+
+    # Already a complete URL
+    if media_path.startswith("http://") or media_path.startswith("https://"):
+        return media_path
+
+    base_url = str(request.base_url).rstrip("/")
+
+    return f"{base_url}/{media_path.lstrip('/')}"
 
 
 # ==========================================================
@@ -28,9 +53,14 @@ router = APIRouter(
 )
 def create_post(
     data: PostCreate,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    # ------------------------------------------------------
+    # Validate recurring post
+    # ------------------------------------------------------
+
     if data.is_recurring:
 
         if data.scheduled_at is None:
@@ -50,11 +80,16 @@ def create_post(
             )
 
         if data.recurrence_end_date is not None:
+
             if data.recurrence_end_date <= data.scheduled_at:
                 raise HTTPException(
                     status_code=400,
                     detail="Recurrence end date must be after the scheduled time.",
                 )
+
+    # ------------------------------------------------------
+    # Validate scheduled time
+    # ------------------------------------------------------
 
     if data.scheduled_at is not None:
 
@@ -76,6 +111,10 @@ def create_post(
     else:
         post_status = "draft"
 
+    # ------------------------------------------------------
+    # Load selected social accounts
+    # ------------------------------------------------------
+
     social_account_ids = data.social_account_ids or []
 
     social_accounts = []
@@ -92,11 +131,17 @@ def create_post(
             .all()
         )
 
-        if len(social_accounts) != len(set(social_account_ids)):
+        if len(social_accounts) != len(
+            set(social_account_ids)
+        ):
             raise HTTPException(
                 status_code=400,
                 detail="One or more selected social accounts are invalid or not connected.",
             )
+
+    # ------------------------------------------------------
+    # Create post
+    # ------------------------------------------------------
 
     post = Post(
         user_id=current_user.id,
@@ -116,11 +161,33 @@ def create_post(
     db.commit()
     db.refresh(post)
 
+    # ------------------------------------------------------
+    # Reload relationships
+    # ------------------------------------------------------
+
+    post = (
+        db.query(Post)
+        .options(
+            joinedload(Post.campaign),
+            joinedload(Post.social_accounts),
+        )
+        .filter(
+            Post.id == post.id,
+            Post.user_id == current_user.id,
+        )
+        .first()
+    )
+
+    post.media_url = build_media_url(
+        post.media_url,
+        request,
+    )
+
     return post
 
 
 # ==========================================================
-# GET POSTS
+# GET ALL POSTS
 # ==========================================================
 
 @router.get(
@@ -128,17 +195,77 @@ def create_post(
     response_model=list[PostResponse],
 )
 def get_posts(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     posts = (
         db.query(Post)
-        .filter(Post.user_id == current_user.id)
-        .order_by(Post.created_at.desc())
+        .options(
+            joinedload(Post.campaign),
+            joinedload(Post.social_accounts),
+        )
+        .filter(
+            Post.user_id == current_user.id
+        )
+        .order_by(
+            Post.created_at.desc()
+        )
         .all()
     )
 
+    # Build browser-accessible media URLs
+    for post in posts:
+
+        post.media_url = build_media_url(
+            post.media_url,
+            request,
+        )
+
     return posts
+
+
+# ==========================================================
+# GET SINGLE POST
+# ==========================================================
+
+@router.get(
+    "/{post_id}",
+    response_model=PostResponse,
+)
+def get_post(
+    post_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    post = (
+        db.query(Post)
+        .options(
+            joinedload(Post.campaign),
+            joinedload(Post.social_accounts),
+        )
+        .filter(
+            Post.id == post_id,
+            Post.user_id == current_user.id,
+        )
+        .first()
+    )
+
+    if not post:
+        raise HTTPException(
+            status_code=404,
+            detail="Post not found.",
+        )
+
+    # Convert stored relative image path
+    # into a browser-accessible URL
+    post.media_url = build_media_url(
+        post.media_url,
+        request,
+    )
+
+    return post
 
 
 # ==========================================================
@@ -152,6 +279,7 @@ def get_posts(
 def update_post(
     post_id: int,
     data: PostUpdate,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -193,6 +321,7 @@ def update_post(
             )
 
         if data.recurrence_end_date is not None:
+
             if data.recurrence_end_date <= data.scheduled_at:
                 raise HTTPException(
                     status_code=400,
@@ -221,10 +350,11 @@ def update_post(
         post.status = "scheduled"
 
     else:
+
         post.status = "draft"
 
     # ------------------------------------------------------
-    # Update social accounts only when provided
+    # Update social accounts
     # ------------------------------------------------------
 
     if data.social_account_ids is not None:
@@ -269,6 +399,28 @@ def update_post(
 
     db.commit()
     db.refresh(post)
+
+    # ------------------------------------------------------
+    # Reload relationships
+    # ------------------------------------------------------
+
+    post = (
+        db.query(Post)
+        .options(
+            joinedload(Post.campaign),
+            joinedload(Post.social_accounts),
+        )
+        .filter(
+            Post.id == post.id,
+            Post.user_id == current_user.id,
+        )
+        .first()
+    )
+
+    post.media_url = build_media_url(
+        post.media_url,
+        request,
+    )
 
     return post
 

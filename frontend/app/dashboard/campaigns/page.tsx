@@ -552,8 +552,10 @@ export default function CampaignsPage() {
                     <button
                       type="button"
                       onClick={() =>
-                        router.push("/dashboard/posts")
-                      }
+  router.push(
+    `/dashboard/posts?campaign=${campaign.id}`
+  )
+}
                       className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
                     >
                       View All Posts

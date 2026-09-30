@@ -9,6 +9,7 @@ class PublishingLogCreate(BaseModel):
     platform: str
     status: str
     error_message: Optional[str] = None
+    platform_media_id: Optional[str] = None
 
 
 class PublishingLogResponse(BaseModel):
@@ -16,6 +17,7 @@ class PublishingLogResponse(BaseModel):
     post_id: int
     platform: str
     status: str
+    platform_media_id: Optional[str] = None
     published_at: Optional[datetime] = None
     error_message: Optional[str] = None
     created_at: datetime

@@ -24,9 +24,8 @@ ALLOWED_CONTENT_TYPES = {
 
 PUBLIC_BASE_URL = os.getenv(
     "PUBLIC_BASE_URL",
-    "https://tab-looking-distribution-nokia.trycloudflare.com",
+    "https://nancy-northwest-hall-andreas.trycloudflare.com",
 )
-
 
 @router.post("/image")
 async def upload_image(

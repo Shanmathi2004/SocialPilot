@@ -103,21 +103,18 @@ export default function CreatePostPage() {
 
         const data = await response.json();
 
-        if (Array.isArray(data.accounts)) {
-          const connectedAccounts = data.accounts.filter(
+        const accounts = Array.isArray(data.accounts)
+          ? data.accounts
+          : Array.isArray(data)
+          ? data
+          : [];
+
+        setSocialAccounts(
+          accounts.filter(
             (account: SocialAccount) =>
               account.status?.toLowerCase() === "connected"
-          );
-
-          setSocialAccounts(connectedAccounts);
-        } else if (Array.isArray(data)) {
-          const connectedAccounts = data.filter(
-            (account: SocialAccount) =>
-              account.status?.toLowerCase() === "connected"
-          );
-
-          setSocialAccounts(connectedAccounts);
-        }
+          )
+        );
       } catch (err) {
         console.error("Failed to load social accounts:", err);
       } finally {
@@ -130,9 +127,7 @@ export default function CreatePostPage() {
         "socialpilot_create_post_data"
       );
 
-      if (!savedData) {
-        return;
-      }
+      if (!savedData) return;
 
       try {
         const parsedData: SavedCreatePostData = JSON.parse(savedData);
@@ -141,15 +136,8 @@ export default function CreatePostPage() {
         setMediaUrl(parsedData.mediaUrl || "");
         setScheduledAt(parsedData.scheduledAt || "");
         setIsRecurring(parsedData.isRecurring || false);
-
-        setRecurrenceType(
-          parsedData.recurrenceType || "daily"
-        );
-
-        setRecurrenceEndDate(
-          parsedData.recurrenceEndDate || ""
-        );
-
+        setRecurrenceType(parsedData.recurrenceType || "daily");
+        setRecurrenceEndDate(parsedData.recurrenceEndDate || "");
         setCampaignId(parsedData.campaignId || "");
 
         setSelectedSocialAccountIds(
@@ -166,18 +154,10 @@ export default function CreatePostPage() {
           "Instagram account connected. Your post details have been restored."
         );
 
-        sessionStorage.removeItem(
-          "socialpilot_create_post_data"
-        );
+        sessionStorage.removeItem("socialpilot_create_post_data");
       } catch (err) {
-        console.error(
-          "Failed to restore Create Post data:",
-          err
-        );
-
-        sessionStorage.removeItem(
-          "socialpilot_create_post_data"
-        );
+        console.error("Failed to restore Create Post data:", err);
+        sessionStorage.removeItem("socialpilot_create_post_data");
       }
     };
 
@@ -204,9 +184,7 @@ export default function CreatePostPage() {
 
     const file = event.target.files?.[0];
 
-    if (!file) {
-      return;
-    }
+    if (!file) return;
 
     const allowedTypes = [
       "image/jpeg",
@@ -249,9 +227,7 @@ export default function CreatePostPage() {
   };
 
   const uploadImage = async (token: string) => {
-    if (!selectedFile) {
-      return null;
-    }
+    if (!selectedFile) return null;
 
     setUploadingImage(true);
 
@@ -260,16 +236,13 @@ export default function CreatePostPage() {
 
       formData.append("file", selectedFile);
 
-      const response = await fetch(
-        `${API_URL}/api/uploads/image`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-          body: formData,
-        }
-      );
+      const response = await fetch(`${API_URL}/api/uploads/image`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+      });
 
       const data = await response.json();
 
@@ -309,9 +282,7 @@ export default function CreatePostPage() {
         savedMediaUrl = await uploadImage(token);
 
         if (!savedMediaUrl) {
-          throw new Error(
-            "Unable to upload the selected image."
-          );
+          throw new Error("Unable to upload the selected image.");
         }
 
         setMediaUrl(savedMediaUrl);
@@ -344,8 +315,7 @@ export default function CreatePostPage() {
 
       if (!response.ok) {
         throw new Error(
-          data.detail ||
-            "Unable to start Instagram connection."
+          data.detail || "Unable to start Instagram connection."
         );
       }
 
@@ -357,10 +327,7 @@ export default function CreatePostPage() {
 
       window.location.href = data.login_url;
     } catch (err) {
-      console.error(
-        "Instagram connection error:",
-        err
-      );
+      console.error("Instagram connection error:", err);
 
       setError(
         err instanceof Error
@@ -430,32 +397,24 @@ export default function CreatePostPage() {
           : null,
         recurrence_end_date:
           isRecurring && recurrenceEndDate
-            ? new Date(
-                recurrenceEndDate
-              ).toISOString()
+            ? new Date(recurrenceEndDate).toISOString()
             : null,
-        social_account_ids:
-          selectedSocialAccountIds,
+        social_account_ids: selectedSocialAccountIds,
       };
 
-      const response = await fetch(
-        `${API_URL}/api/posts`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify(payload),
-        }
-      );
+      const response = await fetch(`${API_URL}/api/posts`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
 
       const data = await response.json();
 
       if (!response.ok) {
-        setError(
-          data.detail || "Failed to create post."
-        );
+        setError(data.detail || "Failed to create post.");
         return;
       }
 
@@ -500,390 +459,661 @@ export default function CreatePostPage() {
     }
   };
 
+  const selectedAccounts = socialAccounts.filter((account) =>
+    selectedSocialAccountIds.includes(account.id)
+  );
+
+  const selectedCampaign = campaigns.find(
+    (campaign) => String(campaign.id) === campaignId
+  );
+
   return (
-    <div className="mx-auto max-w-4xl">
-      <div className="mb-8">
-        <button
-          onClick={() => router.push("/dashboard")}
-          className="mb-4 text-sm font-medium text-slate-600 hover:text-slate-900"
-        >
-          ← Back to Dashboard
-        </button>
+    <div className="min-h-screen bg-slate-50">
+      <div className="mx-auto max-w-[1400px] px-4 py-4 sm:px-6 lg:px-8">
 
-        <h1 className="text-3xl font-bold text-slate-900">
-          Create Post
-        </h1>
+        {/* HEADER */}
+        <div className="mb-4 flex flex-col gap-3 border-b border-slate-200 pb-4 md:flex-row md:items-center md:justify-between">
 
-        <p className="mt-2 text-sm text-slate-500">
-          Create, schedule and manage your social media content.
-        </p>
-      </div>
+          <div>
+            <button
+              type="button"
+              onClick={() => router.push("/dashboard")}
+              className="mb-2 text-xs font-semibold text-slate-500 hover:text-slate-900"
+            >
+              ← Dashboard
+            </button>
 
-      <form
-        onSubmit={handleSubmit}
-        className="space-y-6"
-      >
-        {/* CONTENT */}
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl font-bold tracking-tight text-slate-950">
+                Create Post
+              </h1>
 
-        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="mb-4 text-lg font-semibold text-slate-900">
-            Post Content
-          </h2>
+              <span className="rounded-full bg-slate-900 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-white">
+                Content Studio
+              </span>
+            </div>
 
-          <label className="mb-2 block text-sm font-medium text-slate-700">
-            Content
-          </label>
-
-          <textarea
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            placeholder="What do you want to share?"
-            rows={7}
-            maxLength={5000}
-            className="w-full rounded-lg border border-slate-300 px-4 py-3 text-sm outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500"
-          />
-
-          <div className="mt-2 text-right text-xs text-slate-400">
-            {content.length}/5000
+            <p className="mt-1 text-xs text-slate-500">
+              Create, schedule and publish content from one place.
+            </p>
           </div>
-        </div>
 
-        {/* SOCIAL ACCOUNTS */}
-
-        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-lg font-semibold text-slate-900">
-                Publish To
-              </h2>
-
-              <p className="mt-1 text-sm text-slate-500">
-                Select the social accounts where this post should be
-                published.
+          <div className="flex items-center gap-2">
+            <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
+              <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400">
+                Accounts
+              </span>
+              <p className="text-sm font-bold text-slate-900">
+                {selectedSocialAccountIds.length}
               </p>
             </div>
 
-            <button
-              type="button"
-              onClick={handleAddAccount}
-              disabled={uploadingImage}
-              className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {uploadingImage
-                ? "Preparing..."
-                : "+ Add account"}
-            </button>
+            <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
+              <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400">
+                Status
+              </span>
+              <p className="text-sm font-bold text-slate-900">
+                {scheduledAt ? "Scheduled" : "Draft"}
+              </p>
+            </div>
           </div>
-
-          <div className="mt-5">
-            {loadingSocialAccounts ? (
-              <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
-                Loading connected accounts...
-              </div>
-            ) : socialAccounts.length === 0 ? (
-              <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-4">
-                <p className="text-sm font-medium text-amber-800">
-                  No social accounts connected.
-                </p>
-
-                <p className="mt-1 text-xs text-amber-700">
-                  Connect an account before creating a post for social
-                  media publishing.
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {socialAccounts.map((account) => {
-                  const accountName =
-                    account.display_name ||
-                    account.platform_username ||
-                    account.platform_user_id;
-
-                  const isSelected =
-                    selectedSocialAccountIds.includes(
-                      account.id
-                    );
-
-                  return (
-                    <label
-                      key={account.id}
-                      className={`flex cursor-pointer items-center justify-between rounded-lg border px-4 py-4 transition ${
-                        isSelected
-                          ? "border-slate-500 bg-slate-50"
-                          : "border-slate-200 hover:bg-slate-50"
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          onChange={() =>
-                            handleSocialAccountToggle(
-                              account.id
-                            )
-                          }
-                          className="h-4 w-4 rounded border-slate-300"
-                        />
-
-                        <div>
-                          <p className="text-sm font-semibold capitalize text-slate-900">
-                            {account.platform}
-                          </p>
-
-                          <p className="text-xs text-slate-500">
-                            {accountName}
-                          </p>
-                        </div>
-                      </div>
-
-                      <span className="rounded-full bg-green-100 px-2 py-1 text-xs font-medium text-green-700">
-                        Connected
-                      </span>
-                    </label>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          {selectedSocialAccountIds.length > 0 && (
-            <p className="mt-4 text-xs text-slate-500">
-              {selectedSocialAccountIds.length} account
-              {selectedSocialAccountIds.length !== 1
-                ? "s"
-                : ""}{" "}
-              selected.
-            </p>
-          )}
         </div>
 
-        {/* MEDIA */}
+        <form
+          onSubmit={handleSubmit}
+          className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]"
+        >
 
-        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="mb-4 text-lg font-semibold text-slate-900">
-            Media
-          </h2>
+          {/* LEFT */}
+          <div className="space-y-4">
 
-          <label
-            htmlFor="image-upload"
-            className="mb-2 block text-sm font-medium text-slate-700"
-          >
-            Select Image
-          </label>
+            {/* CONTENT + MEDIA */}
+            <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
 
-          <input
-            id="image-upload"
-            type="file"
-            accept="image/jpeg,image/png,image/webp"
-            onChange={handleFileChange}
-            className="block w-full cursor-pointer rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm"
-          />
+              <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+                <div>
+                  <h2 className="text-sm font-bold text-slate-950">
+                    Post Content
+                  </h2>
+                  <p className="text-[11px] text-slate-400">
+                    Write your message and optionally add media.
+                  </p>
+                </div>
 
-          <p className="mt-2 text-xs text-slate-500">
-            Select a JPG, PNG, or WebP image from your computer.
-            Maximum size: 10 MB.
-          </p>
-
-          {previewUrl && (
-            <div className="mt-5">
-              <p className="mb-2 text-sm font-medium text-slate-700">
-                Image Preview
-              </p>
-
-              <div className="relative overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
-                <img
-                  src={previewUrl}
-                  alt="Selected post image"
-                  className="max-h-96 w-full object-contain"
-                />
+                <span className="text-[11px] font-medium text-slate-400">
+                  {content.length}/5000
+                </span>
               </div>
 
-              <div className="mt-3 flex items-center justify-between">
-                <p className="text-xs text-slate-500">
-                  {selectedFile?.name}
-                </p>
+              <div className="grid gap-4 p-4 lg:grid-cols-[minmax(0,1fr)_250px]">
+
+                {/* TEXT */}
+                <div>
+                  <textarea
+                    value={content}
+                    onChange={(e) => setContent(e.target.value)}
+                    placeholder="Write something your audience will love..."
+                    rows={7}
+                    maxLength={5000}
+                    className="w-full resize-none rounded-lg border border-slate-200 bg-slate-50 px-3.5 py-3 text-sm leading-6 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-slate-400 focus:bg-white focus:ring-2 focus:ring-slate-100"
+                  />
+
+                  <div className="mt-2 flex justify-between">
+                    <span className="text-[10px] text-slate-400">
+                      Keep your message clear and engaging.
+                    </span>
+
+                    <span
+                      className={`text-[10px] font-semibold ${
+                        content.length > 4500
+                          ? "text-amber-600"
+                          : "text-slate-400"
+                      }`}
+                    >
+                      {content.length}/5000
+                    </span>
+                  </div>
+                </div>
+
+                {/* MEDIA */}
+                <div>
+                  <div className="mb-2 flex items-center justify-between">
+                    <p className="text-xs font-bold text-slate-700">
+                      Media
+                    </p>
+
+                    {previewUrl && (
+                      <button
+                        type="button"
+                        onClick={removeSelectedImage}
+                        className="text-[10px] font-semibold text-red-600 hover:text-red-700"
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
+
+                  {!previewUrl ? (
+                    <label
+                      htmlFor="image-upload"
+                      className="flex h-[175px] cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 text-center transition hover:border-slate-400 hover:bg-white"
+                    >
+                      <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-lg bg-white text-lg shadow-sm">
+                        ↑
+                      </div>
+
+                      <p className="text-xs font-bold text-slate-700">
+                        Upload image
+                      </p>
+
+                      <p className="mt-1 text-[10px] text-slate-400">
+                        JPG, PNG or WebP · Max 10 MB
+                      </p>
+
+                      <span className="mt-3 rounded-md bg-slate-900 px-3 py-1.5 text-[10px] font-semibold text-white">
+                        Choose Image
+                      </span>
+
+                      <input
+                        id="image-upload"
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        onChange={handleFileChange}
+                        className="hidden"
+                      />
+                    </label>
+                  ) : (
+                    <div className="relative overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+                      <img
+                        src={previewUrl}
+                        alt="Selected post image"
+                        className="h-[175px] w-full object-cover"
+                      />
+
+                      <div className="absolute bottom-0 left-0 right-0 bg-black/60 px-3 py-2">
+                        <p className="truncate text-[10px] font-medium text-white">
+                          {selectedFile?.name || "Uploaded image"}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+              </div>
+            </section>
+
+            {/* SOCIAL ACCOUNTS */}
+            <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
+
+              <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+                <div>
+                  <h2 className="text-sm font-bold text-slate-950">
+                    Publish To
+                  </h2>
+                  <p className="text-[11px] text-slate-400">
+                    Select the accounts for this post.
+                  </p>
+                </div>
 
                 <button
                   type="button"
-                  onClick={removeSelectedImage}
-                  className="rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50"
+                  onClick={handleAddAccount}
+                  disabled={uploadingImage}
+                  className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
                 >
-                  Remove Image
+                  + Add Account
                 </button>
               </div>
-            </div>
-          )}
-        </div>
 
-        {/* CAMPAIGN */}
+              <div className="p-4">
 
-        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="mb-4 text-lg font-semibold text-slate-900">
-            Campaign
-          </h2>
+                {loadingSocialAccounts ? (
+                  <div className="flex items-center gap-2 rounded-lg bg-slate-50 p-3">
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-slate-900" />
+                    <span className="text-xs text-slate-500">
+                      Loading accounts...
+                    </span>
+                  </div>
+                ) : socialAccounts.length === 0 ? (
+                  <div className="rounded-lg border border-dashed border-amber-300 bg-amber-50 p-5 text-center">
+                    <p className="text-xs font-bold text-amber-900">
+                      No connected accounts
+                    </p>
 
-          <label className="mb-2 block text-sm font-medium text-slate-700">
-            Assign to Campaign
-          </label>
+                    <p className="mt-1 text-[10px] text-amber-700">
+                      Connect Instagram before publishing.
+                    </p>
 
-          <select
-            value={campaignId}
-            onChange={(e) => setCampaignId(e.target.value)}
-            disabled={loadingCampaigns}
-            className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500"
-          >
-            <option value="">
-              {loadingCampaigns
-                ? "Loading campaigns..."
-                : "No campaign"}
-            </option>
+                    <button
+                      type="button"
+                      onClick={handleAddAccount}
+                      className="mt-3 rounded-lg bg-amber-900 px-3 py-1.5 text-[10px] font-bold text-white hover:bg-amber-800"
+                    >
+                      Connect Instagram
+                    </button>
+                  </div>
+                ) : (
+                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                    {socialAccounts.map((account) => {
+                      const accountName =
+                        account.display_name ||
+                        account.platform_username ||
+                        account.platform_user_id;
 
-            {campaigns.map((campaign) => (
-              <option
-                key={campaign.id}
-                value={campaign.id}
+                      const isSelected =
+                        selectedSocialAccountIds.includes(account.id);
+
+                      return (
+                        <label
+                          key={account.id}
+                          className={`cursor-pointer rounded-lg border p-3 transition ${
+                            isSelected
+                              ? "border-slate-900 bg-slate-50"
+                              : "border-slate-200 hover:border-slate-300"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+
+                            <div className="flex min-w-0 items-center gap-2.5">
+                              <div
+                                className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-sm font-bold ${
+                                  account.platform.toLowerCase() ===
+                                  "instagram"
+                                    ? "bg-pink-100 text-pink-700"
+                                    : "bg-slate-100 text-slate-700"
+                                }`}
+                              >
+                                {account.platform
+                                  .charAt(0)
+                                  .toUpperCase()}
+                              </div>
+
+                              <div className="min-w-0">
+                                <p className="text-xs font-bold capitalize text-slate-900">
+                                  {account.platform}
+                                </p>
+
+                                <p className="truncate text-[10px] text-slate-400">
+                                  {accountName}
+                                </p>
+                              </div>
+                            </div>
+
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() =>
+                                handleSocialAccountToggle(account.id)
+                              }
+                              className="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-900"
+                            />
+                          </div>
+
+                          <div className="mt-2 flex items-center justify-between">
+                            <span className="flex items-center gap-1 text-[9px] font-semibold text-emerald-600">
+                              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                              Connected
+                            </span>
+
+                            {isSelected && (
+                              <span className="text-[9px] font-bold text-slate-900">
+                                Selected ✓
+                              </span>
+                            )}
+                          </div>
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {selectedSocialAccountIds.length > 0 && (
+                  <div className="mt-3 rounded-lg bg-slate-50 px-3 py-2">
+                    <p className="text-[10px] font-semibold text-slate-500">
+                      {selectedSocialAccountIds.length} account
+                      {selectedSocialAccountIds.length !== 1 ? "s" : ""}{" "}
+                      selected for publishing.
+                    </p>
+                  </div>
+                )}
+
+              </div>
+            </section>
+
+            {/* PUBLISHING SETTINGS */}
+            <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
+
+              <div className="border-b border-slate-100 px-4 py-3">
+                <h2 className="text-sm font-bold text-slate-950">
+                  Publishing Settings
+                </h2>
+
+                <p className="text-[11px] text-slate-400">
+                  Campaign, scheduling and recurring options.
+                </p>
+              </div>
+
+              <div className="grid gap-4 p-4 md:grid-cols-2">
+
+                {/* CAMPAIGN */}
+                <div>
+                  <label className="mb-1.5 block text-xs font-bold text-slate-700">
+                    Campaign
+                  </label>
+
+                  <select
+                    value={campaignId}
+                    onChange={(e) => setCampaignId(e.target.value)}
+                    disabled={loadingCampaigns}
+                    className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs text-slate-800 outline-none focus:border-slate-400 focus:bg-white focus:ring-2 focus:ring-slate-100"
+                  >
+                    <option value="">
+                      {loadingCampaigns
+                        ? "Loading campaigns..."
+                        : "No campaign"}
+                    </option>
+
+                    {campaigns.map((campaign) => (
+                      <option
+                        key={campaign.id}
+                        value={campaign.id}
+                      >
+                        {campaign.name}
+                      </option>
+                    ))}
+                  </select>
+
+                  <p className="mt-1 text-[10px] text-slate-400">
+                    {selectedCampaign
+                      ? `Assigned to ${selectedCampaign.name}`
+                      : "Optional campaign"}
+                  </p>
+                </div>
+
+                {/* SCHEDULE */}
+                <div>
+                  <label className="mb-1.5 block text-xs font-bold text-slate-700">
+                    Schedule
+                  </label>
+
+                  <input
+                    type="datetime-local"
+                    value={scheduledAt}
+                    onChange={(e) => setScheduledAt(e.target.value)}
+                    className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs text-slate-800 outline-none focus:border-slate-400 focus:bg-white focus:ring-2 focus:ring-slate-100"
+                  />
+
+                  <p className="mt-1 text-[10px] text-slate-400">
+                    Empty = save as draft
+                  </p>
+                </div>
+
+                {/* RECURRING */}
+                <div className="md:col-span-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
+
+                  <label className="flex cursor-pointer items-center gap-2.5">
+                    <input
+                      type="checkbox"
+                      checked={isRecurring}
+                      onChange={(e) =>
+                        setIsRecurring(e.target.checked)
+                      }
+                      className="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-900"
+                    />
+
+                    <div>
+                      <p className="text-xs font-bold text-slate-800">
+                        Recurring post
+                      </p>
+
+                      <p className="text-[10px] text-slate-400">
+                        Automatically repeat this content.
+                      </p>
+                    </div>
+                  </label>
+
+                  {isRecurring && (
+                    <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                      <div>
+                        <label className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                          Repeat
+                        </label>
+
+                        <select
+                          value={recurrenceType}
+                          onChange={(e) =>
+                            setRecurrenceType(e.target.value)
+                          }
+                          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs outline-none"
+                        >
+                          <option value="daily">Daily</option>
+                          <option value="weekly">Weekly</option>
+                          <option value="monthly">Monthly</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                          End Date
+                        </label>
+
+                        <input
+                          type="datetime-local"
+                          value={recurrenceEndDate}
+                          onChange={(e) =>
+                            setRecurrenceEndDate(e.target.value)
+                          }
+                          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs outline-none"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+              </div>
+            </section>
+
+            {/* MESSAGES */}
+            {uploadingImage && (
+              <div className="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-xs text-blue-700">
+                <div className="h-4 w-4 animate-spin rounded-full border-2 border-blue-300 border-t-blue-700" />
+                Uploading image...
+              </div>
+            )}
+
+            {error && (
+              <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3">
+                <p className="text-xs font-bold text-red-800">
+                  Something went wrong
+                </p>
+                <p className="mt-1 text-xs text-red-700">
+                  {error}
+                </p>
+              </div>
+            )}
+
+            {message && (
+              <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3">
+                <p className="text-xs font-bold text-emerald-800">
+                  Success
+                </p>
+                <p className="mt-1 text-xs text-emerald-700">
+                  {message}
+                </p>
+              </div>
+            )}
+
+            {/* ACTIONS */}
+            <div className="flex justify-end gap-2 border-t border-slate-200 pt-3">
+
+              <button
+                type="button"
+                onClick={() => router.push("/dashboard")}
+                className="rounded-lg border border-slate-200 bg-white px-5 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50"
               >
-                {campaign.name}
-              </option>
-            ))}
-          </select>
+                Cancel
+              </button>
 
-          <p className="mt-2 text-xs text-slate-500">
-            Assign this post to an existing campaign.
-          </p>
-        </div>
+              <button
+                type="submit"
+                disabled={loading || uploadingImage}
+                className="rounded-lg bg-slate-950 px-6 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {uploadingImage
+                  ? "Uploading..."
+                  : loading
+                  ? "Creating..."
+                  : scheduledAt
+                  ? "Schedule Post"
+                  : "Create Draft"}
+              </button>
 
-        {/* SCHEDULING */}
-
-        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="mb-4 text-lg font-semibold text-slate-900">
-            Schedule
-          </h2>
-
-          <label className="mb-2 block text-sm font-medium text-slate-700">
-            Schedule Date & Time
-          </label>
-
-          <input
-            type="datetime-local"
-            value={scheduledAt}
-            onChange={(e) =>
-              setScheduledAt(e.target.value)
-            }
-            className="w-full rounded-lg border border-slate-300 px-4 py-3 text-sm outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500"
-          />
-
-          <p className="mt-2 text-xs text-slate-500">
-            Leave empty to save the post as a draft.
-          </p>
-        </div>
-
-        {/* RECURRING */}
-
-        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="flex items-center gap-3">
-            <input
-              id="recurring"
-              type="checkbox"
-              checked={isRecurring}
-              onChange={(e) =>
-                setIsRecurring(e.target.checked)
-              }
-              className="h-4 w-4 rounded border-slate-300"
-            />
-
-            <label
-              htmlFor="recurring"
-              className="text-sm font-medium text-slate-700"
-            >
-              Make this a recurring post
-            </label>
+            </div>
           </div>
 
-          {isRecurring && (
-            <div className="mt-5 space-y-5">
-              <div>
-                <label className="mb-2 block text-sm font-medium text-slate-700">
-                  Repeat
-                </label>
+          {/* RIGHT - COMPACT PREVIEW */}
+          <aside className="lg:sticky lg:top-4 lg:h-fit">
 
-                <select
-                  value={recurrenceType}
-                  onChange={(e) =>
-                    setRecurrenceType(e.target.value)
-                  }
-                  className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm"
-                >
-                  <option value="daily">Daily</option>
-                  <option value="weekly">Weekly</option>
-                  <option value="monthly">Monthly</option>
-                </select>
+            <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+
+              <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+                <div>
+                  <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">
+                    Live Preview
+                  </p>
+
+                  <h2 className="text-sm font-bold text-slate-950">
+                    Your Post
+                  </h2>
+                </div>
+
+                <span className="rounded-full bg-emerald-50 px-2 py-1 text-[9px] font-bold text-emerald-600">
+                  LIVE
+                </span>
               </div>
 
-              <div>
-                <label className="mb-2 block text-sm font-medium text-slate-700">
-                  Recurrence End Date
-                </label>
+              <div className="p-3">
 
-                <input
-                  type="datetime-local"
-                  value={recurrenceEndDate}
-                  onChange={(e) =>
-                    setRecurrenceEndDate(
-                      e.target.value
-                    )
-                  }
-                  className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm"
-                />
+                {/* SOCIAL PREVIEW */}
+                <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+
+                  <div className="flex items-center gap-2.5 p-3">
+
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-pink-500 via-purple-500 to-orange-400 text-xs font-bold text-white">
+                      {selectedAccounts.length > 0
+                        ? selectedAccounts[0].platform
+                            .charAt(0)
+                            .toUpperCase()
+                        : "S"}
+                    </div>
+
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-xs font-bold text-slate-900">
+                        {selectedAccounts.length > 0
+                          ? selectedAccounts[0].display_name ||
+                            selectedAccounts[0].platform_username ||
+                            "Connected account"
+                          : "Your SocialPilot account"}
+                      </p>
+
+                      <p className="text-[9px] text-slate-400">
+                        {selectedAccounts.length > 0
+                          ? `@${selectedAccounts[0].platform}`
+                          : "Preview"}
+                      </p>
+                    </div>
+
+                    <span className="text-xs text-slate-400">
+                      •••
+                    </span>
+                  </div>
+
+                  {previewUrl ? (
+                    <div className="aspect-square bg-slate-100">
+                      <img
+                        src={previewUrl}
+                        alt="Post preview"
+                        className="h-full w-full object-cover"
+                      />
+                    </div>
+                  ) : (
+                    <div className="flex aspect-square items-center justify-center bg-slate-50">
+                      <div className="text-center">
+                        <div className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-lg bg-white text-lg shadow-sm">
+                          ◇
+                        </div>
+
+                        <p className="text-[10px] font-semibold text-slate-500">
+                          Image preview
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex items-center gap-3 px-3 py-2 text-sm text-slate-500">
+                    ♡
+                    <span>◌</span>
+                    <span>↗</span>
+                  </div>
+
+                  <div className="px-3 pb-4">
+                    <p className="line-clamp-5 whitespace-pre-wrap break-words text-xs leading-5 text-slate-800">
+                      {content ||
+                        "Your post caption will appear here..."}
+                    </p>
+                  </div>
+
+                </div>
+
+                {/* QUICK INFO */}
+                <div className="mt-3 grid grid-cols-2 gap-2">
+
+                  <div className="rounded-lg bg-slate-50 px-3 py-2">
+                    <p className="text-[9px] font-bold uppercase tracking-wide text-slate-400">
+                      Status
+                    </p>
+
+                    <p className="mt-0.5 text-[10px] font-bold text-slate-800">
+                      {scheduledAt ? "Scheduled" : "Draft"}
+                    </p>
+                  </div>
+
+                  <div className="rounded-lg bg-slate-50 px-3 py-2">
+                    <p className="text-[9px] font-bold uppercase tracking-wide text-slate-400">
+                      Accounts
+                    </p>
+
+                    <p className="mt-0.5 text-[10px] font-bold text-slate-800">
+                      {selectedSocialAccountIds.length}
+                    </p>
+                  </div>
+
+                  <div className="col-span-2 rounded-lg bg-slate-50 px-3 py-2">
+                    <p className="text-[9px] font-bold uppercase tracking-wide text-slate-400">
+                      Campaign
+                    </p>
+
+                    <p className="mt-0.5 truncate text-[10px] font-bold text-slate-800">
+                      {selectedCampaign?.name || "None"}
+                    </p>
+                  </div>
+
+                  {isRecurring && (
+                    <div className="col-span-2 rounded-lg border border-purple-100 bg-purple-50 px-3 py-2">
+                      <p className="text-[10px] font-bold text-purple-800">
+                        ↻ Recurring · {recurrenceType}
+                      </p>
+                    </div>
+                  )}
+
+                </div>
+
               </div>
             </div>
-          )}
-        </div>
+          </aside>
 
-        {/* MESSAGES */}
-
-        {uploadingImage && (
-          <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
-            Uploading image...
-          </div>
-        )}
-
-        {error && (
-          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            {error}
-          </div>
-        )}
-
-        {message && (
-          <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
-            {message}
-          </div>
-        )}
-
-        {/* BUTTONS */}
-
-        <div className="flex justify-end gap-3">
-          <button
-            type="button"
-            onClick={() => router.push("/dashboard")}
-            className="rounded-lg border border-slate-300 px-5 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
-          >
-            Cancel
-          </button>
-
-          <button
-            type="submit"
-            disabled={loading || uploadingImage}
-            className="rounded-lg bg-slate-900 px-6 py-3 text-sm font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {uploadingImage
-              ? "Uploading..."
-              : loading
-              ? "Creating..."
-              : "Create Post"}
-          </button>
-        </div>
-      </form>
+        </form>
+      </div>
     </div>
   );
 }

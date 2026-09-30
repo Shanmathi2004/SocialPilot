@@ -1,8 +1,60 @@
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
+
+# ==========================================================
+# SOCIAL ACCOUNT RESPONSE
+# ==========================================================
+
+class SocialAccountSummary(BaseModel):
+
+    id: int
+
+    platform: str
+
+    platform_username: Optional[str] = None
+
+    display_name: Optional[str] = None
+
+    status: str
+
+    model_config = ConfigDict(
+        from_attributes=True
+    )
+
+
+# ==========================================================
+# CAMPAIGN RESPONSE
+# ==========================================================
+
+class CampaignSummary(BaseModel):
+
+    id: int
+
+    name: str
+
+    description: Optional[str] = None
+
+    status: str
+
+    start_date: Optional[datetime] = None
+
+    end_date: Optional[datetime] = None
+
+    budget: float = 0
+
+    revenue: float = 0
+
+    model_config = ConfigDict(
+        from_attributes=True
+    )
+
+
+# ==========================================================
+# CREATE POST
+# ==========================================================
 
 class PostCreate(BaseModel):
 
@@ -22,9 +74,15 @@ class PostCreate(BaseModel):
 
     recurrence_end_date: Optional[datetime] = None
 
-    # Selected social media accounts for this post
-    social_account_ids: list[int] = Field(default_factory=list)
+    # Selected social media accounts
+    social_account_ids: list[int] = Field(
+        default_factory=list
+    )
 
+
+# ==========================================================
+# UPDATE POST
+# ==========================================================
 
 class PostUpdate(BaseModel):
 
@@ -44,9 +102,13 @@ class PostUpdate(BaseModel):
 
     recurrence_end_date: Optional[datetime] = None
 
-    # None means: keep the existing social accounts
+    # None means keep existing accounts
     social_account_ids: Optional[list[int]] = None
 
+
+# ==========================================================
+# POST RESPONSE
+# ==========================================================
 
 class PostResponse(BaseModel):
 
@@ -73,3 +135,21 @@ class PostResponse(BaseModel):
     created_at: datetime
 
     updated_at: datetime
+
+    # ------------------------------------------------------
+    # RELATED CAMPAIGN
+    # ------------------------------------------------------
+
+    campaign: Optional[CampaignSummary] = None
+
+    # ------------------------------------------------------
+    # SELECTED SOCIAL ACCOUNTS
+    # ------------------------------------------------------
+
+    social_accounts: list[SocialAccountSummary] = Field(
+        default_factory=list
+    )
+
+    model_config = ConfigDict(
+        from_attributes=True
+    )
