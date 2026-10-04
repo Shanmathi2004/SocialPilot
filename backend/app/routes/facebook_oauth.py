@@ -1,7 +1,7 @@
 from urllib.parse import urlencode
 
 import requests
-
+import os
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
@@ -21,11 +21,7 @@ router = APIRouter(
 FACEBOOK_APP_ID = "YOUR_FACEBOOK_APP_ID"
 FACEBOOK_APP_SECRET = "YOUR_FACEBOOK_APP_SECRET"
 
-FACEBOOK_REDIRECT_URI = (
-    "https://trusts-political-fda-charlie.trycloudflare.com"
-    "/api/social/facebook/callback"
-)
-
+FACEBOOK_REDIRECT_URI = os.getenv("FACEBOOK_REDIRECT_URI")
 
 @router.get("/login")
 def facebook_login(

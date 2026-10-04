@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 const API_URL = "http://127.0.0.1:8000";
@@ -8,183 +8,112 @@ const API_URL = "http://127.0.0.1:8000";
 type Campaign = {
   id: number;
   name: string;
-  status: string;
 };
 
 type SocialAccount = {
   id: number;
   platform: string;
-  platform_user_id: string;
-  platform_username: string | null;
-  display_name: string | null;
+  platform_username?: string | null;
+  display_name?: string | null;
   status: string;
-};
-
-type SavedCreatePostData = {
-  content: string;
-  mediaUrl: string;
-  scheduledAt: string;
-  isRecurring: boolean;
-  recurrenceType: string;
-  recurrenceEndDate: string;
-  campaignId: string;
-  selectedSocialAccountIds: number[];
 };
 
 export default function CreatePostPage() {
   const router = useRouter();
 
   const [content, setContent] = useState("");
-  const [mediaUrl, setMediaUrl] = useState("");
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [previewUrl, setPreviewUrl] = useState("");
+  const [mediaFile, setMediaFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   const [scheduledAt, setScheduledAt] = useState("");
+  const [isScheduled, setIsScheduled] = useState(false);
+
   const [isRecurring, setIsRecurring] = useState(false);
   const [recurrenceType, setRecurrenceType] = useState("daily");
   const [recurrenceEndDate, setRecurrenceEndDate] = useState("");
 
-  const [campaignId, setCampaignId] = useState("");
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [campaignId, setCampaignId] = useState("");
 
   const [socialAccounts, setSocialAccounts] = useState<SocialAccount[]>([]);
-  const [selectedSocialAccountIds, setSelectedSocialAccountIds] =
-    useState<number[]>([]);
+  const [selectedAccountIds, setSelectedAccountIds] = useState<number[]>([]);
 
   const [loading, setLoading] = useState(false);
-  const [uploadingImage, setUploadingImage] = useState(false);
-  const [loadingCampaigns, setLoadingCampaigns] = useState(true);
-  const [loadingSocialAccounts, setLoadingSocialAccounts] = useState(true);
+  const [uploading, setUploading] = useState(false);
 
-  const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
 
   useEffect(() => {
     const token = localStorage.getItem("access_token");
 
     if (!token) {
-      router.replace("/login");
+      router.push("/login");
       return;
     }
 
-    const loadCampaigns = async () => {
-      try {
-        const response = await fetch(`${API_URL}/api/campaigns`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-
-          if (Array.isArray(data)) {
-            setCampaigns(data);
-          }
-        }
-      } catch (err) {
-        console.error("Failed to load campaigns:", err);
-      } finally {
-        setLoadingCampaigns(false);
-      }
-    };
-
-    const loadSocialAccounts = async () => {
-      try {
-        const response = await fetch(`${API_URL}/api/social-accounts`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-
-        if (!response.ok) {
-          throw new Error("Failed to load social accounts.");
-        }
-
-        const data = await response.json();
-
-        const accounts = Array.isArray(data.accounts)
-          ? data.accounts
-          : Array.isArray(data)
-          ? data
-          : [];
-
-        setSocialAccounts(
-          accounts.filter(
-            (account: SocialAccount) =>
-              account.status?.toLowerCase() === "connected"
-          )
-        );
-      } catch (err) {
-        console.error("Failed to load social accounts:", err);
-      } finally {
-        setLoadingSocialAccounts(false);
-      }
-    };
-
-    const restoreCreatePostData = () => {
-      const savedData = sessionStorage.getItem(
-        "socialpilot_create_post_data"
-      );
-
-      if (!savedData) return;
-
-      try {
-        const parsedData: SavedCreatePostData = JSON.parse(savedData);
-
-        setContent(parsedData.content || "");
-        setMediaUrl(parsedData.mediaUrl || "");
-        setScheduledAt(parsedData.scheduledAt || "");
-        setIsRecurring(parsedData.isRecurring || false);
-        setRecurrenceType(parsedData.recurrenceType || "daily");
-        setRecurrenceEndDate(parsedData.recurrenceEndDate || "");
-        setCampaignId(parsedData.campaignId || "");
-
-        setSelectedSocialAccountIds(
-          Array.isArray(parsedData.selectedSocialAccountIds)
-            ? parsedData.selectedSocialAccountIds
-            : []
-        );
-
-        if (parsedData.mediaUrl) {
-          setPreviewUrl(parsedData.mediaUrl);
-        }
-
-        setMessage(
-          "Instagram account connected. Your post details have been restored."
-        );
-
-        sessionStorage.removeItem("socialpilot_create_post_data");
-      } catch (err) {
-        console.error("Failed to restore Create Post data:", err);
-        sessionStorage.removeItem("socialpilot_create_post_data");
-      }
-    };
-
-    loadCampaigns();
-    loadSocialAccounts();
-    restoreCreatePostData();
+    loadData(token);
   }, [router]);
 
-  const handleSocialAccountToggle = (accountId: number) => {
-    setSelectedSocialAccountIds((currentIds) => {
-      if (currentIds.includes(accountId)) {
-        return currentIds.filter((id) => id !== accountId);
+  useEffect(() => {
+    return () => {
+      if (previewUrl) {
+        URL.revokeObjectURL(previewUrl);
+      }
+    };
+  }, [previewUrl]);
+
+  async function loadData(token: string) {
+    try {
+      const [campaignResponse, accountResponse] = await Promise.all([
+        fetch(`${API_URL}/api/campaigns`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }),
+        fetch(`${API_URL}/api/social-accounts`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }),
+      ]);
+
+      if (campaignResponse.ok) {
+        const campaignData = await campaignResponse.json();
+
+        if (Array.isArray(campaignData)) {
+          setCampaigns(campaignData);
+        } else if (Array.isArray(campaignData?.campaigns)) {
+          setCampaigns(campaignData.campaigns);
+        }
       }
 
-      return [...currentIds, accountId];
-    });
-  };
+      if (accountResponse.ok) {
+        const accountData = await accountResponse.json();
 
-  const handleFileChange = (
-    event: React.ChangeEvent<HTMLInputElement>
-  ) => {
+        const accounts = Array.isArray(accountData)
+          ? accountData
+          : accountData?.accounts || [];
+
+        const connectedAccounts = accounts.filter(
+          (account: SocialAccount) => account.status === "connected"
+        );
+
+        setSocialAccounts(connectedAccounts);
+      }
+    } catch (err) {
+      console.error("Failed to load data:", err);
+    }
+  }
+
+  function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
     setError("");
-    setMessage("");
 
     const file = event.target.files?.[0];
 
-    if (!file) return;
+    if (!file) {
+      return;
+    }
 
     const allowedTypes = [
       "image/jpeg",
@@ -206,35 +135,53 @@ export default function CreatePostPage() {
       return;
     }
 
-    setSelectedFile(file);
+    if (previewUrl) {
+      URL.revokeObjectURL(previewUrl);
+    }
 
-    const localPreviewUrl = URL.createObjectURL(file);
-    setPreviewUrl(localPreviewUrl);
-  };
+    const newPreviewUrl = URL.createObjectURL(file);
 
-  const removeSelectedImage = () => {
-    setSelectedFile(null);
-    setMediaUrl("");
-    setPreviewUrl("");
+    setMediaFile(file);
+    setPreviewUrl(newPreviewUrl);
+  }
+
+  function removeImage() {
+    if (previewUrl) {
+      URL.revokeObjectURL(previewUrl);
+    }
+
+    setMediaFile(null);
+    setPreviewUrl(null);
 
     const fileInput = document.getElementById(
-      "image-upload"
+      "media"
     ) as HTMLInputElement | null;
 
     if (fileInput) {
       fileInput.value = "";
     }
-  };
+  }
 
-  const uploadImage = async (token: string) => {
-    if (!selectedFile) return null;
+  function toggleAccount(accountId: number) {
+    setSelectedAccountIds((previous) => {
+      if (previous.includes(accountId)) {
+        return previous.filter((id) => id !== accountId);
+      }
 
-    setUploadingImage(true);
+      return [...previous, accountId];
+    });
+  }
+
+  async function uploadImage(token: string): Promise<string | null> {
+    if (!mediaFile) {
+      return null;
+    }
+
+    setUploading(true);
 
     try {
       const formData = new FormData();
-
-      formData.append("file", selectedFile);
+      formData.append("file", mediaFile);
 
       const response = await fetch(`${API_URL}/api/uploads/image`, {
         method: "POST",
@@ -244,162 +191,85 @@ export default function CreatePostPage() {
         body: formData,
       });
 
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+
+        throw new Error(
+          data?.detail || "Failed to upload image."
+        );
+      }
+
       const data = await response.json();
 
-      if (!response.ok) {
-        throw new Error(
-          data.detail || "Failed to upload image."
-        );
-      }
-
-      if (!data.url) {
-        throw new Error(
-          "Image upload succeeded but no image URL was returned."
-        );
-      }
-
-      return data.url;
+      return data.url || data.path || null;
     } finally {
-      setUploadingImage(false);
+      setUploading(false);
     }
-  };
+  }
 
-  const handleAddAccount = async () => {
-    setError("");
-    setMessage("");
-
-    try {
-      const token = localStorage.getItem("access_token");
-
-      if (!token) {
-        router.replace("/login");
-        return;
-      }
-
-      let savedMediaUrl = mediaUrl;
-
-      if (selectedFile && !mediaUrl) {
-        savedMediaUrl = await uploadImage(token);
-
-        if (!savedMediaUrl) {
-          throw new Error("Unable to upload the selected image.");
-        }
-
-        setMediaUrl(savedMediaUrl);
-      }
-
-      sessionStorage.setItem(
-        "socialpilot_create_post_data",
-        JSON.stringify({
-          content,
-          mediaUrl: savedMediaUrl || "",
-          scheduledAt,
-          isRecurring,
-          recurrenceType,
-          recurrenceEndDate,
-          campaignId,
-          selectedSocialAccountIds,
-        })
-      );
-
-      const response = await fetch(
-        `${API_URL}/api/social/instagram/login?return_to=/dashboard/create-post`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(
-          data.detail || "Unable to start Instagram connection."
-        );
-      }
-
-      if (!data.login_url) {
-        throw new Error(
-          "Instagram login URL was not returned."
-        );
-      }
-
-      window.location.href = data.login_url;
-    } catch (err) {
-      console.error("Instagram connection error:", err);
-
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Unable to connect Instagram."
-      );
-    }
-  };
-
-  const handleSubmit = async (
-    event: FormEvent<HTMLFormElement>
-  ) => {
+  async function handleSubmit(
+    event: React.FormEvent<HTMLFormElement>
+  ) {
     event.preventDefault();
 
-    setMessage("");
     setError("");
+    setSuccess("");
+
+    const token = localStorage.getItem("access_token");
+
+    if (!token) {
+      router.push("/login");
+      return;
+    }
 
     if (!content.trim()) {
       setError("Please enter your post content.");
       return;
     }
 
-    if (isRecurring && !scheduledAt) {
-      setError(
-        "Recurring posts must have a scheduled date and time."
-      );
+    if (selectedAccountIds.length === 0) {
+      setError("Please select at least one social account.");
       return;
     }
 
-    if (isRecurring && !recurrenceType) {
-      setError("Please select a recurrence type.");
+    if (isScheduled && !scheduledAt) {
+      setError("Please select a scheduled date and time.");
+      return;
+    }
+
+    if (isRecurring && !isScheduled) {
+      setError("Recurring posts must be scheduled.");
       return;
     }
 
     setLoading(true);
 
     try {
-      const token = localStorage.getItem("access_token");
+      let mediaUrl: string | null = null;
 
-      if (!token) {
-        router.replace("/login");
-        return;
-      }
+      if (mediaFile) {
+        mediaUrl = await uploadImage(token);
 
-      let finalMediaUrl = mediaUrl;
-
-      if (selectedFile) {
-        finalMediaUrl = await uploadImage(token);
-
-        if (!finalMediaUrl) {
-          throw new Error("Unable to upload image.");
+        if (!mediaUrl) {
+          throw new Error("Image upload failed.");
         }
       }
 
-      const payload = {
+      const postData = {
         content: content.trim(),
-        media_url: finalMediaUrl || null,
-        campaign_id: campaignId
-          ? Number(campaignId)
-          : null,
-        scheduled_at: scheduledAt
+        media_url: mediaUrl,
+        status: isScheduled ? "scheduled" : "draft",
+        scheduled_at: isScheduled
           ? new Date(scheduledAt).toISOString()
           : null,
         is_recurring: isRecurring,
-        recurrence_type: isRecurring
-          ? recurrenceType
-          : null,
+        recurrence_type: isRecurring ? recurrenceType : null,
         recurrence_end_date:
           isRecurring && recurrenceEndDate
             ? new Date(recurrenceEndDate).toISOString()
             : null,
-        social_account_ids: selectedSocialAccountIds,
+        campaign_id: campaignId ? Number(campaignId) : null,
+        social_account_ids: selectedAccountIds,
       };
 
       const response = await fetch(`${API_URL}/api/posts`, {
@@ -408,710 +278,537 @@ export default function CreatePostPage() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(postData),
       });
 
-      const data = await response.json();
+      const data = await response.json().catch(() => null);
 
       if (!response.ok) {
-        setError(data.detail || "Failed to create post.");
-        return;
+        throw new Error(
+          data?.detail || "Failed to create post."
+        );
       }
 
-      sessionStorage.removeItem(
-        "socialpilot_create_post_data"
+      setSuccess(
+        isScheduled
+          ? "Post scheduled successfully!"
+          : "Post created successfully!"
       );
 
-      setMessage("Post created successfully!");
-
-      setContent("");
-      setMediaUrl("");
-      setSelectedFile(null);
-      setPreviewUrl("");
-      setScheduledAt("");
-      setIsRecurring(false);
-      setRecurrenceType("daily");
-      setRecurrenceEndDate("");
-      setCampaignId("");
-      setSelectedSocialAccountIds([]);
-
-      const fileInput = document.getElementById(
-        "image-upload"
-      ) as HTMLInputElement | null;
-
-      if (fileInput) {
-        fileInput.value = "";
-      }
+      sessionStorage.removeItem("socialpilot_create_post");
 
       setTimeout(() => {
         router.push("/dashboard/posts");
       }, 1000);
     } catch (err) {
-      console.error(err);
+      console.error("Create post error:", err);
 
       setError(
         err instanceof Error
           ? err.message
-          : "Unable to connect to the backend."
+          : "Failed to create post."
       );
     } finally {
       setLoading(false);
     }
-  };
+  }
 
-  const selectedAccounts = socialAccounts.filter((account) =>
-    selectedSocialAccountIds.includes(account.id)
-  );
+  function handleAddAccount() {
+    const token = localStorage.getItem("access_token");
 
-  const selectedCampaign = campaigns.find(
-    (campaign) => String(campaign.id) === campaignId
-  );
+    if (!token) {
+      router.push("/login");
+      return;
+    }
+
+    const postData = {
+      content,
+      scheduledAt,
+      isScheduled,
+      isRecurring,
+      recurrenceType,
+      recurrenceEndDate,
+      campaignId,
+      selectedAccountIds,
+    };
+
+    sessionStorage.setItem(
+      "socialpilot_create_post",
+      JSON.stringify(postData)
+    );
+
+    window.location.href = `${API_URL}/api/social/instagram/login?return_to=/dashboard/create-post`;
+  }
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <div className="mx-auto max-w-[1400px] px-4 py-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gray-50 p-6">
+      <div className="mx-auto max-w-7xl">
+        <div className="mb-8">
+          <button
+            type="button"
+            onClick={() => router.push("/dashboard")}
+            className="mb-4 text-sm text-gray-600 hover:text-gray-900"
+          >
+            ← Back to Dashboard
+          </button>
 
-        {/* HEADER */}
-        <div className="mb-4 flex flex-col gap-3 border-b border-slate-200 pb-4 md:flex-row md:items-center md:justify-between">
+          <h1 className="text-3xl font-bold text-gray-900">
+            Create Post
+          </h1>
 
-          <div>
-            <button
-              type="button"
-              onClick={() => router.push("/dashboard")}
-              className="mb-2 text-xs font-semibold text-slate-500 hover:text-slate-900"
-            >
-              ← Dashboard
-            </button>
-
-            <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold tracking-tight text-slate-950">
-                Create Post
-              </h1>
-
-              <span className="rounded-full bg-slate-900 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-white">
-                Content Studio
-              </span>
-            </div>
-
-            <p className="mt-1 text-xs text-slate-500">
-              Create, schedule and publish content from one place.
-            </p>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
-              <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400">
-                Accounts
-              </span>
-              <p className="text-sm font-bold text-slate-900">
-                {selectedSocialAccountIds.length}
-              </p>
-            </div>
-
-            <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
-              <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400">
-                Status
-              </span>
-              <p className="text-sm font-bold text-slate-900">
-                {scheduledAt ? "Scheduled" : "Draft"}
-              </p>
-            </div>
-          </div>
+          <p className="mt-2 text-gray-600">
+            Create and schedule content for your connected social
+            media accounts.
+          </p>
         </div>
 
-        <form
-          onSubmit={handleSubmit}
-          className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]"
-        >
+        {error && (
+          <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+            {error}
+          </div>
+        )}
 
-          {/* LEFT */}
-          <div className="space-y-4">
+        {success && (
+          <div className="mb-6 rounded-lg border border-green-200 bg-green-50 p-4 text-sm text-green-700">
+            {success}
+          </div>
+        )}
 
-            {/* CONTENT + MEDIA */}
-            <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
+        <form onSubmit={handleSubmit}>
+          <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+            {/* LEFT SIDE */}
+            <div className="space-y-6">
+              {/* CONTENT */}
+              <div className="rounded-xl bg-white p-6 shadow-sm">
+                <label
+                  htmlFor="content"
+                  className="mb-2 block text-sm font-semibold text-gray-900"
+                >
+                  Post Content
+                </label>
 
-              <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
-                <div>
-                  <h2 className="text-sm font-bold text-slate-950">
-                    Post Content
-                  </h2>
-                  <p className="text-[11px] text-slate-400">
-                    Write your message and optionally add media.
-                  </p>
+                <textarea
+                  id="content"
+                  value={content}
+                  onChange={(event) =>
+                    setContent(event.target.value)
+                  }
+                  placeholder="What do you want to share?"
+                  rows={8}
+                  className="w-full rounded-lg border border-gray-300 p-4 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                />
+
+                <div className="mt-2 text-right text-xs text-gray-500">
+                  {content.length} characters
                 </div>
-
-                <span className="text-[11px] font-medium text-slate-400">
-                  {content.length}/5000
-                </span>
               </div>
 
-              <div className="grid gap-4 p-4 lg:grid-cols-[minmax(0,1fr)_250px]">
+              {/* IMAGE */}
+              <div className="rounded-xl bg-white p-6 shadow-sm">
+                <h2 className="mb-4 text-sm font-semibold text-gray-900">
+                  Media
+                </h2>
 
-                {/* TEXT */}
-                <div>
-                  <textarea
-                    value={content}
-                    onChange={(e) => setContent(e.target.value)}
-                    placeholder="Write something your audience will love..."
-                    rows={7}
-                    maxLength={5000}
-                    className="w-full resize-none rounded-lg border border-slate-200 bg-slate-50 px-3.5 py-3 text-sm leading-6 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-slate-400 focus:bg-white focus:ring-2 focus:ring-slate-100"
-                  />
+                {!previewUrl && (
+                  <label
+                    htmlFor="media"
+                    className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-gray-300 p-10 text-center transition hover:border-blue-400 hover:bg-blue-50"
+                  >
+                    <div className="mb-3 text-4xl">
+                      📷
+                    </div>
 
-                  <div className="mt-2 flex justify-between">
-                    <span className="text-[10px] text-slate-400">
-                      Keep your message clear and engaging.
-                    </span>
-
-                    <span
-                      className={`text-[10px] font-semibold ${
-                        content.length > 4500
-                          ? "text-amber-600"
-                          : "text-slate-400"
-                      }`}
-                    >
-                      {content.length}/5000
-                    </span>
-                  </div>
-                </div>
-
-                {/* MEDIA */}
-                <div>
-                  <div className="mb-2 flex items-center justify-between">
-                    <p className="text-xs font-bold text-slate-700">
-                      Media
+                    <p className="text-sm font-medium text-gray-700">
+                      Select an image
                     </p>
 
-                    {previewUrl && (
-                      <button
-                        type="button"
-                        onClick={removeSelectedImage}
-                        className="text-[10px] font-semibold text-red-600 hover:text-red-700"
-                      >
-                        Remove
-                      </button>
+                    <p className="mt-1 text-xs text-gray-500">
+                      JPG, PNG or WebP • Maximum 10 MB
+                    </p>
+
+                    <input
+                      id="media"
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      onChange={handleFileChange}
+                      className="hidden"
+                    />
+                  </label>
+                )}
+
+                {previewUrl && (
+                  <div className="relative overflow-hidden rounded-lg border border-gray-200">
+                    <img
+                      src={previewUrl}
+                      alt="Selected image preview"
+                      className="max-h-[500px] w-full object-contain"
+                    />
+
+                    <button
+                      type="button"
+                      onClick={removeImage}
+                      className="absolute right-3 top-3 rounded-lg bg-red-600 px-3 py-2 text-sm font-medium text-white shadow hover:bg-red-700"
+                    >
+                      Remove Image
+                    </button>
+
+                    {mediaFile && (
+                      <div className="border-t bg-white p-3 text-xs text-gray-600">
+                        {mediaFile.name}
+                      </div>
                     )}
                   </div>
+                )}
+              </div>
 
-                  {!previewUrl ? (
+              {/* SCHEDULING */}
+              <div className="rounded-xl bg-white p-6 shadow-sm">
+                <h2 className="mb-4 text-sm font-semibold text-gray-900">
+                  Scheduling
+                </h2>
+
+                <label className="flex cursor-pointer items-center gap-3">
+                  <input
+                    type="checkbox"
+                    checked={isScheduled}
+                    onChange={(event) => {
+                      setIsScheduled(event.target.checked);
+
+                      if (!event.target.checked) {
+                        setScheduledAt("");
+                        setIsRecurring(false);
+                      }
+                    }}
+                    className="h-4 w-4 rounded border-gray-300"
+                  />
+
+                  <span className="text-sm text-gray-700">
+                    Schedule this post
+                  </span>
+                </label>
+
+                {isScheduled && (
+                  <div className="mt-4">
                     <label
-                      htmlFor="image-upload"
-                      className="flex h-[175px] cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 text-center transition hover:border-slate-400 hover:bg-white"
+                      htmlFor="scheduledAt"
+                      className="mb-2 block text-sm font-medium text-gray-700"
                     >
-                      <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-lg bg-white text-lg shadow-sm">
-                        ↑
-                      </div>
+                      Date and Time
+                    </label>
 
-                      <p className="text-xs font-bold text-slate-700">
-                        Upload image
-                      </p>
+                    <input
+                      id="scheduledAt"
+                      type="datetime-local"
+                      value={scheduledAt}
+                      onChange={(event) =>
+                        setScheduledAt(event.target.value)
+                      }
+                      className="w-full rounded-lg border border-gray-300 p-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                    />
+                  </div>
+                )}
 
-                      <p className="mt-1 text-[10px] text-slate-400">
-                        JPG, PNG or WebP · Max 10 MB
-                      </p>
+                {isScheduled && (
+                  <div className="mt-5">
+                    <label className="flex cursor-pointer items-center gap-3">
+                      <input
+                        type="checkbox"
+                        checked={isRecurring}
+                        onChange={(event) =>
+                          setIsRecurring(event.target.checked)
+                        }
+                        className="h-4 w-4 rounded border-gray-300"
+                      />
 
-                      <span className="mt-3 rounded-md bg-slate-900 px-3 py-1.5 text-[10px] font-semibold text-white">
-                        Choose Image
+                      <span className="text-sm text-gray-700">
+                        Make this a recurring post
                       </span>
+                    </label>
+                  </div>
+                )}
+
+                {isRecurring && (
+                  <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                    <div>
+                      <label
+                        htmlFor="recurrenceType"
+                        className="mb-2 block text-sm font-medium text-gray-700"
+                      >
+                        Repeat
+                      </label>
+
+                      <select
+                        id="recurrenceType"
+                        value={recurrenceType}
+                        onChange={(event) =>
+                          setRecurrenceType(event.target.value)
+                        }
+                        className="w-full rounded-lg border border-gray-300 p-3 text-sm outline-none focus:border-blue-500"
+                      >
+                        <option value="daily">
+                          Daily
+                        </option>
+
+                        <option value="weekly">
+                          Weekly
+                        </option>
+
+                        <option value="monthly">
+                          Monthly
+                        </option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label
+                        htmlFor="recurrenceEndDate"
+                        className="mb-2 block text-sm font-medium text-gray-700"
+                      >
+                        End Date
+                      </label>
 
                       <input
-                        id="image-upload"
-                        type="file"
-                        accept="image/jpeg,image/png,image/webp"
-                        onChange={handleFileChange}
-                        className="hidden"
+                        id="recurrenceEndDate"
+                        type="datetime-local"
+                        value={recurrenceEndDate}
+                        onChange={(event) =>
+                          setRecurrenceEndDate(
+                            event.target.value
+                          )
+                        }
+                        className="w-full rounded-lg border border-gray-300 p-3 text-sm outline-none focus:border-blue-500"
                       />
-                    </label>
-                  ) : (
-                    <div className="relative overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
-                      <img
-                        src={previewUrl}
-                        alt="Selected post image"
-                        className="h-[175px] w-full object-cover"
-                      />
-
-                      <div className="absolute bottom-0 left-0 right-0 bg-black/60 px-3 py-2">
-                        <p className="truncate text-[10px] font-medium text-white">
-                          {selectedFile?.name || "Uploaded image"}
-                        </p>
-                      </div>
                     </div>
-                  )}
-                </div>
-
-              </div>
-            </section>
-
-            {/* SOCIAL ACCOUNTS */}
-            <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
-
-              <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
-                <div>
-                  <h2 className="text-sm font-bold text-slate-950">
-                    Publish To
-                  </h2>
-                  <p className="text-[11px] text-slate-400">
-                    Select the accounts for this post.
-                  </p>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={handleAddAccount}
-                  disabled={uploadingImage}
-                  className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-                >
-                  + Add Account
-                </button>
-              </div>
-
-              <div className="p-4">
-
-                {loadingSocialAccounts ? (
-                  <div className="flex items-center gap-2 rounded-lg bg-slate-50 p-3">
-                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-slate-900" />
-                    <span className="text-xs text-slate-500">
-                      Loading accounts...
-                    </span>
                   </div>
-                ) : socialAccounts.length === 0 ? (
-                  <div className="rounded-lg border border-dashed border-amber-300 bg-amber-50 p-5 text-center">
-                    <p className="text-xs font-bold text-amber-900">
-                      No connected accounts
-                    </p>
+                )}
+              </div>
 
-                    <p className="mt-1 text-[10px] text-amber-700">
-                      Connect Instagram before publishing.
+              {/* CAMPAIGN */}
+              <div className="rounded-xl bg-white p-6 shadow-sm">
+                <h2 className="mb-4 text-sm font-semibold text-gray-900">
+                  Campaign
+                </h2>
+
+                <select
+                  value={campaignId}
+                  onChange={(event) =>
+                    setCampaignId(event.target.value)
+                  }
+                  className="w-full rounded-lg border border-gray-300 p-3 text-sm outline-none focus:border-blue-500"
+                >
+                  <option value="">
+                    No Campaign
+                  </option>
+
+                  {campaigns.map((campaign) => (
+                    <option
+                      key={campaign.id}
+                      value={campaign.id}
+                    >
+                      {campaign.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* SOCIAL ACCOUNTS */}
+              <div className="rounded-xl bg-white p-6 shadow-sm">
+                <div className="mb-4 flex items-center justify-between">
+                  <div>
+                    <h2 className="text-sm font-semibold text-gray-900">
+                      Publish To
+                    </h2>
+
+                    <p className="mt-1 text-xs text-gray-500">
+                      Select the social accounts where this post
+                      should be published.
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleAddAccount}
+                    className="rounded-lg border border-blue-600 px-3 py-2 text-xs font-medium text-blue-600 hover:bg-blue-50"
+                  >
+                    + Add Account
+                  </button>
+                </div>
+
+                {socialAccounts.length === 0 ? (
+                  <div className="rounded-lg border border-dashed border-gray-300 p-6 text-center">
+                    <p className="text-sm text-gray-600">
+                      No connected social accounts.
                     </p>
 
                     <button
                       type="button"
                       onClick={handleAddAccount}
-                      className="mt-3 rounded-lg bg-amber-900 px-3 py-1.5 text-[10px] font-bold text-white hover:bg-amber-800"
+                      className="mt-3 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
                     >
                       Connect Instagram
                     </button>
                   </div>
                 ) : (
-                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                  <div className="space-y-3">
                     {socialAccounts.map((account) => {
-                      const accountName =
-                        account.display_name ||
-                        account.platform_username ||
-                        account.platform_user_id;
-
                       const isSelected =
-                        selectedSocialAccountIds.includes(account.id);
+                        selectedAccountIds.includes(account.id);
 
                       return (
                         <label
                           key={account.id}
-                          className={`cursor-pointer rounded-lg border p-3 transition ${
+                          className={`flex cursor-pointer items-center justify-between rounded-lg border p-4 transition ${
                             isSelected
-                              ? "border-slate-900 bg-slate-50"
-                              : "border-slate-200 hover:border-slate-300"
+                              ? "border-blue-500 bg-blue-50"
+                              : "border-gray-200 hover:border-gray-300"
                           }`}
                         >
-                          <div className="flex items-center justify-between">
-
-                            <div className="flex min-w-0 items-center gap-2.5">
-                              <div
-                                className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-sm font-bold ${
-                                  account.platform.toLowerCase() ===
-                                  "instagram"
-                                    ? "bg-pink-100 text-pink-700"
-                                    : "bg-slate-100 text-slate-700"
-                                }`}
-                              >
-                                {account.platform
-                                  .charAt(0)
-                                  .toUpperCase()}
-                              </div>
-
-                              <div className="min-w-0">
-                                <p className="text-xs font-bold capitalize text-slate-900">
-                                  {account.platform}
-                                </p>
-
-                                <p className="truncate text-[10px] text-slate-400">
-                                  {accountName}
-                                </p>
-                              </div>
+                          <div className="flex items-center gap-3">
+                            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 text-lg">
+                              {account.platform === "instagram"
+                                ? "📸"
+                                : account.platform === "facebook"
+                                ? "📘"
+                                : account.platform === "linkedin"
+                                ? "💼"
+                                : "🌐"}
                             </div>
 
-                            <input
-                              type="checkbox"
-                              checked={isSelected}
-                              onChange={() =>
-                                handleSocialAccountToggle(account.id)
-                              }
-                              className="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-900"
-                            />
+                            <div>
+                              <p className="text-sm font-medium capitalize text-gray-900">
+                                {account.platform}
+                              </p>
+
+                              <p className="text-xs text-gray-500">
+                                {account.display_name ||
+                                  account.platform_username ||
+                                  "Connected account"}
+                              </p>
+                            </div>
                           </div>
 
-                          <div className="mt-2 flex items-center justify-between">
-                            <span className="flex items-center gap-1 text-[9px] font-semibold text-emerald-600">
-                              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                              Connected
-                            </span>
-
-                            {isSelected && (
-                              <span className="text-[9px] font-bold text-slate-900">
-                                Selected ✓
-                              </span>
-                            )}
-                          </div>
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() =>
+                              toggleAccount(account.id)
+                            }
+                            className="h-4 w-4 rounded border-gray-300"
+                          />
                         </label>
                       );
                     })}
                   </div>
                 )}
-
-                {selectedSocialAccountIds.length > 0 && (
-                  <div className="mt-3 rounded-lg bg-slate-50 px-3 py-2">
-                    <p className="text-[10px] font-semibold text-slate-500">
-                      {selectedSocialAccountIds.length} account
-                      {selectedSocialAccountIds.length !== 1 ? "s" : ""}{" "}
-                      selected for publishing.
-                    </p>
-                  </div>
-                )}
-
               </div>
-            </section>
 
-            {/* PUBLISHING SETTINGS */}
-            <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
+              {/* BUTTONS */}
+              <div className="flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() =>
+                    router.push("/dashboard/posts")
+                  }
+                  className="rounded-lg border border-gray-300 px-5 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
 
-              <div className="border-b border-slate-100 px-4 py-3">
-                <h2 className="text-sm font-bold text-slate-950">
-                  Publishing Settings
+                <button
+                  type="submit"
+                  disabled={loading || uploading}
+                  className="rounded-lg bg-blue-600 px-6 py-3 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {uploading
+                    ? "Uploading Image..."
+                    : loading
+                    ? "Creating Post..."
+                    : isScheduled
+                    ? "Schedule Post"
+                    : "Create Post"}
+                </button>
+              </div>
+            </div>
+
+            {/* RIGHT SIDE - PREVIEW */}
+            <div className="lg:sticky lg:top-6 lg:self-start">
+              <div className="rounded-xl bg-white p-6 shadow-sm">
+                <h2 className="mb-4 text-sm font-semibold text-gray-900">
+                  Preview
                 </h2>
 
-                <p className="text-[11px] text-slate-400">
-                  Campaign, scheduling and recurring options.
-                </p>
-              </div>
-
-              <div className="grid gap-4 p-4 md:grid-cols-2">
-
-                {/* CAMPAIGN */}
-                <div>
-                  <label className="mb-1.5 block text-xs font-bold text-slate-700">
-                    Campaign
-                  </label>
-
-                  <select
-                    value={campaignId}
-                    onChange={(e) => setCampaignId(e.target.value)}
-                    disabled={loadingCampaigns}
-                    className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs text-slate-800 outline-none focus:border-slate-400 focus:bg-white focus:ring-2 focus:ring-slate-100"
-                  >
-                    <option value="">
-                      {loadingCampaigns
-                        ? "Loading campaigns..."
-                        : "No campaign"}
-                    </option>
-
-                    {campaigns.map((campaign) => (
-                      <option
-                        key={campaign.id}
-                        value={campaign.id}
-                      >
-                        {campaign.name}
-                      </option>
-                    ))}
-                  </select>
-
-                  <p className="mt-1 text-[10px] text-slate-400">
-                    {selectedCampaign
-                      ? `Assigned to ${selectedCampaign.name}`
-                      : "Optional campaign"}
-                  </p>
-                </div>
-
-                {/* SCHEDULE */}
-                <div>
-                  <label className="mb-1.5 block text-xs font-bold text-slate-700">
-                    Schedule
-                  </label>
-
-                  <input
-                    type="datetime-local"
-                    value={scheduledAt}
-                    onChange={(e) => setScheduledAt(e.target.value)}
-                    className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs text-slate-800 outline-none focus:border-slate-400 focus:bg-white focus:ring-2 focus:ring-slate-100"
-                  />
-
-                  <p className="mt-1 text-[10px] text-slate-400">
-                    Empty = save as draft
-                  </p>
-                </div>
-
-                {/* RECURRING */}
-                <div className="md:col-span-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
-
-                  <label className="flex cursor-pointer items-center gap-2.5">
-                    <input
-                      type="checkbox"
-                      checked={isRecurring}
-                      onChange={(e) =>
-                        setIsRecurring(e.target.checked)
-                      }
-                      className="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-900"
-                    />
-
-                    <div>
-                      <p className="text-xs font-bold text-slate-800">
-                        Recurring post
-                      </p>
-
-                      <p className="text-[10px] text-slate-400">
-                        Automatically repeat this content.
-                      </p>
-                    </div>
-                  </label>
-
-                  {isRecurring && (
-                    <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                      <div>
-                        <label className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-slate-400">
-                          Repeat
-                        </label>
-
-                        <select
-                          value={recurrenceType}
-                          onChange={(e) =>
-                            setRecurrenceType(e.target.value)
-                          }
-                          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs outline-none"
-                        >
-                          <option value="daily">Daily</option>
-                          <option value="weekly">Weekly</option>
-                          <option value="monthly">Monthly</option>
-                        </select>
+                <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
+                  <div className="border-b border-gray-100 p-4">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-200">
+                        👤
                       </div>
 
                       <div>
-                        <label className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-slate-400">
-                          End Date
-                        </label>
+                        <p className="text-sm font-semibold text-gray-900">
+                          Your Account
+                        </p>
 
-                        <input
-                          type="datetime-local"
-                          value={recurrenceEndDate}
-                          onChange={(e) =>
-                            setRecurrenceEndDate(e.target.value)
-                          }
-                          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs outline-none"
-                        />
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-              </div>
-            </section>
-
-            {/* MESSAGES */}
-            {uploadingImage && (
-              <div className="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-xs text-blue-700">
-                <div className="h-4 w-4 animate-spin rounded-full border-2 border-blue-300 border-t-blue-700" />
-                Uploading image...
-              </div>
-            )}
-
-            {error && (
-              <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3">
-                <p className="text-xs font-bold text-red-800">
-                  Something went wrong
-                </p>
-                <p className="mt-1 text-xs text-red-700">
-                  {error}
-                </p>
-              </div>
-            )}
-
-            {message && (
-              <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3">
-                <p className="text-xs font-bold text-emerald-800">
-                  Success
-                </p>
-                <p className="mt-1 text-xs text-emerald-700">
-                  {message}
-                </p>
-              </div>
-            )}
-
-            {/* ACTIONS */}
-            <div className="flex justify-end gap-2 border-t border-slate-200 pt-3">
-
-              <button
-                type="button"
-                onClick={() => router.push("/dashboard")}
-                className="rounded-lg border border-slate-200 bg-white px-5 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50"
-              >
-                Cancel
-              </button>
-
-              <button
-                type="submit"
-                disabled={loading || uploadingImage}
-                className="rounded-lg bg-slate-950 px-6 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {uploadingImage
-                  ? "Uploading..."
-                  : loading
-                  ? "Creating..."
-                  : scheduledAt
-                  ? "Schedule Post"
-                  : "Create Draft"}
-              </button>
-
-            </div>
-          </div>
-
-          {/* RIGHT - COMPACT PREVIEW */}
-          <aside className="lg:sticky lg:top-4 lg:h-fit">
-
-            <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-
-              <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
-                <div>
-                  <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">
-                    Live Preview
-                  </p>
-
-                  <h2 className="text-sm font-bold text-slate-950">
-                    Your Post
-                  </h2>
-                </div>
-
-                <span className="rounded-full bg-emerald-50 px-2 py-1 text-[9px] font-bold text-emerald-600">
-                  LIVE
-                </span>
-              </div>
-
-              <div className="p-3">
-
-                {/* SOCIAL PREVIEW */}
-                <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
-
-                  <div className="flex items-center gap-2.5 p-3">
-
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-pink-500 via-purple-500 to-orange-400 text-xs font-bold text-white">
-                      {selectedAccounts.length > 0
-                        ? selectedAccounts[0].platform
-                            .charAt(0)
-                            .toUpperCase()
-                        : "S"}
-                    </div>
-
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-xs font-bold text-slate-900">
-                        {selectedAccounts.length > 0
-                          ? selectedAccounts[0].display_name ||
-                            selectedAccounts[0].platform_username ||
-                            "Connected account"
-                          : "Your SocialPilot account"}
-                      </p>
-
-                      <p className="text-[9px] text-slate-400">
-                        {selectedAccounts.length > 0
-                          ? `@${selectedAccounts[0].platform}`
-                          : "Preview"}
-                      </p>
-                    </div>
-
-                    <span className="text-xs text-slate-400">
-                      •••
-                    </span>
-                  </div>
-
-                  {previewUrl ? (
-                    <div className="aspect-square bg-slate-100">
-                      <img
-                        src={previewUrl}
-                        alt="Post preview"
-                        className="h-full w-full object-cover"
-                      />
-                    </div>
-                  ) : (
-                    <div className="flex aspect-square items-center justify-center bg-slate-50">
-                      <div className="text-center">
-                        <div className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-lg bg-white text-lg shadow-sm">
-                          ◇
-                        </div>
-
-                        <p className="text-[10px] font-semibold text-slate-500">
-                          Image preview
+                        <p className="text-xs text-gray-500">
+                          SocialPilot
                         </p>
                       </div>
                     </div>
-                  )}
-
-                  <div className="flex items-center gap-3 px-3 py-2 text-sm text-slate-500">
-                    ♡
-                    <span>◌</span>
-                    <span>↗</span>
                   </div>
 
-                  <div className="px-3 pb-4">
-                    <p className="line-clamp-5 whitespace-pre-wrap break-words text-xs leading-5 text-slate-800">
-                      {content ||
-                        "Your post caption will appear here..."}
-                    </p>
-                  </div>
-
-                </div>
-
-                {/* QUICK INFO */}
-                <div className="mt-3 grid grid-cols-2 gap-2">
-
-                  <div className="rounded-lg bg-slate-50 px-3 py-2">
-                    <p className="text-[9px] font-bold uppercase tracking-wide text-slate-400">
-                      Status
-                    </p>
-
-                    <p className="mt-0.5 text-[10px] font-bold text-slate-800">
-                      {scheduledAt ? "Scheduled" : "Draft"}
-                    </p>
-                  </div>
-
-                  <div className="rounded-lg bg-slate-50 px-3 py-2">
-                    <p className="text-[9px] font-bold uppercase tracking-wide text-slate-400">
-                      Accounts
-                    </p>
-
-                    <p className="mt-0.5 text-[10px] font-bold text-slate-800">
-                      {selectedSocialAccountIds.length}
-                    </p>
-                  </div>
-
-                  <div className="col-span-2 rounded-lg bg-slate-50 px-3 py-2">
-                    <p className="text-[9px] font-bold uppercase tracking-wide text-slate-400">
-                      Campaign
-                    </p>
-
-                    <p className="mt-0.5 truncate text-[10px] font-bold text-slate-800">
-                      {selectedCampaign?.name || "None"}
-                    </p>
-                  </div>
-
-                  {isRecurring && (
-                    <div className="col-span-2 rounded-lg border border-purple-100 bg-purple-50 px-3 py-2">
-                      <p className="text-[10px] font-bold text-purple-800">
-                        ↻ Recurring · {recurrenceType}
+                  <div className="p-4">
+                    {content ? (
+                      <p className="whitespace-pre-wrap text-sm text-gray-800">
+                        {content}
                       </p>
+                    ) : (
+                      <p className="text-sm text-gray-400">
+                        Your post content will appear here...
+                      </p>
+                    )}
+                  </div>
+
+                  {/* IMPORTANT:
+                      Image is shown ONLY when previewUrl exists.
+                      If no image is selected, this section stays empty.
+                  */}
+                  {previewUrl && (
+                    <div className="border-t border-gray-100">
+                      <img
+                        src={previewUrl}
+                        alt="Post preview"
+                        className="max-h-[400px] w-full object-contain"
+                      />
                     </div>
                   )}
 
+                  <div className="border-t border-gray-100 px-4 py-3">
+                    <div className="flex justify-between text-xs text-gray-400">
+                      <span>Like</span>
+                      <span>Comment</span>
+                      <span>Share</span>
+                    </div>
+                  </div>
                 </div>
 
+                <div className="mt-4 rounded-lg bg-gray-50 p-4">
+                  <p className="text-xs font-medium text-gray-700">
+                    Selected Accounts
+                  </p>
+
+                  <p className="mt-1 text-sm text-gray-600">
+                    {selectedAccountIds.length === 0
+                      ? "No accounts selected"
+                      : `${selectedAccountIds.length} account${
+                          selectedAccountIds.length > 1
+                            ? "s"
+                            : ""
+                        } selected`}
+                  </p>
+                </div>
               </div>
             </div>
-          </aside>
-
+          </div>
         </form>
       </div>
     </div>

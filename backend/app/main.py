@@ -17,6 +17,9 @@ from app.routes.uploads import router as uploads_router
 from app.scheduler import start_scheduler
 from app.routes.instagram_insights import router as instagram_insights_router
 from app.routes.background_publishing import router as background_publishing_router
+from app.social.facebook import router as facebook_router
+from app.social.linkedin import router as linkedin_router
+from app.social.youtube import router as youtube_router
 
 app = FastAPI(
     title="SocialPilot API",
@@ -69,7 +72,9 @@ app.include_router(campaigns_router)
 app.include_router(uploads_router)
 app.include_router(instagram_insights_router)
 app.include_router(background_publishing_router)
-
+app.include_router(facebook_router)
+app.include_router(linkedin_router)
+app.include_router(youtube_router)
 # ============================================================
 # ROOT
 # ============================================================

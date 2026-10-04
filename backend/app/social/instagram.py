@@ -20,9 +20,7 @@ load_dotenv()
 INSTAGRAM_ACCESS_TOKEN = os.getenv("INSTAGRAM_ACCESS_TOKEN")
 INSTAGRAM_APP_SECRET = os.getenv("INSTAGRAM_APP_SECRET")
 INSTAGRAM_APP_ID = "1065297846368970"
-INSTAGRAM_REDIRECT_URI = (
-    "https://nancy-northwest-hall-andreas.trycloudflare.com/api/social/instagram/callback"
-)
+INSTAGRAM_REDIRECT_URI = os.getenv("INSTAGRAM_REDIRECT_URI")
 FRONTEND_URL = "http://localhost:3000"
 
 router = APIRouter(

@@ -2,6 +2,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
+
 from app.database.connection import get_db
 from app.models.social_account import SocialAccount
 from app.models.user import User
@@ -16,10 +17,24 @@ router = APIRouter(
     prefix="/api/social-accounts",
     tags=["Social Accounts"],
 )
+
+
 class InstagramConnectRequest(BaseModel):
     platform_user_id: str
     platform_username: str
     access_token: str
+
+
+# ============================================================
+# HELPER: PLATFORM LABEL
+# ============================================================
+
+def get_platform_label(platform: str) -> str:
+    if platform == "linkedin":
+        return "LinkedIn Personal Profile"
+
+    return platform.title()
+
 
 # ============================================================
 # GET ALL SOCIAL ACCOUNTS
@@ -52,6 +67,9 @@ def get_social_accounts(
             {
                 "id": account.id,
                 "platform": account.platform,
+                "platform_label": get_platform_label(
+                    account.platform
+                ),
                 "platform_user_id": account.platform_user_id,
                 "platform_username": account.platform_username,
                 "display_name": account.display_name,
@@ -105,6 +123,9 @@ def get_social_account(
         "account": {
             "id": account.id,
             "platform": account.platform,
+            "platform_label": get_platform_label(
+                account.platform
+            ),
             "platform_user_id": account.platform_user_id,
             "platform_username": account.platform_username,
             "display_name": account.display_name,
@@ -161,9 +182,14 @@ def disconnect_social_account(
         "account": {
             "id": account.id,
             "platform": account.platform,
+            "platform_label": get_platform_label(
+                account.platform
+            ),
             "status": account.status,
         },
     }
+
+
 # ============================================================
 # CONNECT INSTAGRAM ACCOUNT
 # ============================================================
@@ -200,6 +226,9 @@ def connect_instagram_account(
         "account": {
             "id": account.id,
             "platform": account.platform,
+            "platform_label": get_platform_label(
+                account.platform
+            ),
             "platform_user_id": account.platform_user_id,
             "platform_username": account.platform_username,
             "status": account.status,

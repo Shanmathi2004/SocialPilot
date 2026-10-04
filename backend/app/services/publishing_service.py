@@ -1,4 +1,3 @@
-
 from datetime import datetime, timezone
 
 import requests
@@ -10,7 +9,15 @@ from app.models.publishing_log import PublishingLog
 
 
 INSTAGRAM_GRAPH_URL = "https://graph.instagram.com/v24.0"
+FACEBOOK_GRAPH_URL = "https://graph.facebook.com/v24.0"
 
+LINKEDIN_POSTS_URL = "https://api.linkedin.com/rest/posts"
+LINKEDIN_VERSION = "202608"
+
+
+# ============================================================
+# INSTAGRAM PUBLISHING
+# ============================================================
 
 def publish_to_instagram(
     db: Session,
@@ -130,6 +137,261 @@ def publish_to_instagram(
     return instagram_media_id
 
 
+# ============================================================
+# FACEBOOK PUBLISHING
+# ============================================================
+
+def publish_to_facebook(
+    db: Session,
+    post: Post,
+    social_account: SocialAccount,
+):
+    """
+    Publish a post to one Facebook Page.
+
+    Supports:
+    1. Text-only posts
+    2. Image posts with caption
+    """
+
+    if not social_account.access_token:
+        raise ValueError(
+            "Facebook Page access token is missing."
+        )
+
+    page_id = social_account.platform_user_id
+    access_token = social_account.access_token
+
+    if not page_id:
+        raise ValueError(
+            "Facebook Page ID is missing."
+        )
+
+    # --------------------------------------------------
+    # IMAGE POST
+    # --------------------------------------------------
+
+    if post.media_url:
+
+        photos_url = (
+            f"{FACEBOOK_GRAPH_URL}/"
+            f"{page_id}/photos"
+        )
+
+        photo_data = {
+            "url": post.media_url,
+            "caption": post.content,
+            "access_token": access_token,
+        }
+
+        response = requests.post(
+            photos_url,
+            data=photo_data,
+            timeout=30,
+        )
+
+        try:
+            result = response.json()
+        except ValueError:
+            result = {}
+
+        if response.status_code != 200:
+            error_message = (
+                result
+                .get("error", {})
+                .get("message")
+                if isinstance(result.get("error"), dict)
+                else None
+            )
+
+            raise ValueError(
+                error_message
+                or "Facebook could not publish the image."
+            )
+
+        facebook_post_id = result.get("post_id")
+
+        if not facebook_post_id:
+            facebook_post_id = result.get("id")
+
+        if not facebook_post_id:
+            raise ValueError(
+                "Facebook did not return the published post ID."
+            )
+
+        return facebook_post_id
+
+    # --------------------------------------------------
+    # TEXT-ONLY POST
+    # --------------------------------------------------
+
+    feed_url = (
+        f"{FACEBOOK_GRAPH_URL}/"
+        f"{page_id}/feed"
+    )
+
+    feed_data = {
+        "message": post.content,
+        "access_token": access_token,
+    }
+
+    response = requests.post(
+        feed_url,
+        data=feed_data,
+        timeout=30,
+    )
+
+    try:
+        result = response.json()
+    except ValueError:
+        result = {}
+
+    if response.status_code != 200:
+        error_message = (
+            result
+            .get("error", {})
+            .get("message")
+            if isinstance(result.get("error"), dict)
+            else None
+        )
+
+        raise ValueError(
+            error_message
+            or "Facebook could not publish the post."
+        )
+
+    facebook_post_id = result.get("id")
+
+    if not facebook_post_id:
+        raise ValueError(
+            "Facebook did not return the published post ID."
+        )
+
+    return facebook_post_id
+
+
+# ============================================================
+# LINKEDIN PUBLISHING
+# ============================================================
+
+def publish_to_linkedin(
+    db: Session,
+    post: Post,
+    social_account: SocialAccount,
+):
+    """
+    Publish a text post to the connected LinkedIn member account.
+
+    This version supports text-only LinkedIn posts.
+    """
+
+    if not social_account.access_token:
+        raise ValueError(
+            "LinkedIn access token is missing."
+        )
+
+    linkedin_user_id = social_account.platform_user_id
+    access_token = social_account.access_token
+
+    if not linkedin_user_id:
+        raise ValueError(
+            "LinkedIn member ID is missing."
+        )
+
+    # LinkedIn expects the authenticated member
+    # as a Person URN.
+    author_urn = f"urn:li:person:{linkedin_user_id}"
+
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "X-Restli-Protocol-Version": "2.0.0",
+        "LinkedIn-Version": LINKEDIN_VERSION,
+        "Content-Type": "application/json",
+    }
+
+    post_data = {
+        "author": author_urn,
+        "commentary": post.content,
+        "visibility": "PUBLIC",
+        "distribution": {
+            "feedDistribution": "MAIN_FEED",
+            "targetEntities": [],
+            "thirdPartyDistributionChannels": [],
+        },
+        "lifecycleState": "PUBLISHED",
+        "isReshareDisabledByAuthor": False,
+    }
+
+    response = requests.post(
+        LINKEDIN_POSTS_URL,
+        headers=headers,
+        json=post_data,
+        timeout=30,
+    )
+    print("========== LINKEDIN DEBUG ==========")
+    print("HTTP STATUS:", response.status_code)
+    print("RESPONSE HEADERS:", dict(response.headers))
+    print("RESPONSE BODY:", response.text)
+    print("====================================")
+    try:
+        result = response.json()
+    except ValueError:
+        result = {}
+
+    # LinkedIn may return 200 or 201 for a successful post.
+    if response.status_code not in (200, 201):
+        error_message = None
+
+        if isinstance(result, dict):
+            error_message = result.get("message")
+
+            if not error_message:
+                error_message = result.get(
+                    "error_description"
+                )
+
+            if not error_message:
+                error_details = result.get("error")
+
+                if isinstance(error_details, dict):
+                    error_message = error_details.get(
+                        "message"
+                    )
+
+        if not error_message:
+            error_message = response.text
+
+        raise ValueError(
+            error_message
+            or "LinkedIn could not publish the post."
+        )
+
+    # LinkedIn normally returns the post URN
+    # in the x-restli-id response header.
+    linkedin_post_id = response.headers.get(
+        "x-restli-id"
+    )
+
+    if not linkedin_post_id:
+        linkedin_post_id = response.headers.get(
+            "X-RestLi-Id"
+        )
+
+    if not linkedin_post_id and isinstance(result, dict):
+        linkedin_post_id = result.get("id")
+
+    if not linkedin_post_id:
+        raise ValueError(
+            "LinkedIn did not return the published post ID."
+        )
+
+    return linkedin_post_id
+
+
+# ============================================================
+# MAIN PUBLISH FUNCTION
+# ============================================================
+
 def publish_post(
     db: Session,
     post_id: int,
@@ -236,6 +498,82 @@ def publish_post(
                 )
 
             # --------------------------------------------------
+            # FACEBOOK
+            # --------------------------------------------------
+
+            elif platform_name == "facebook":
+
+                facebook_post_id = publish_to_facebook(
+                    db=db,
+                    post=post,
+                    social_account=social_account,
+                )
+
+                log = PublishingLog(
+                    post_id=post.id,
+                    social_account_id=social_account.id,
+                    platform="facebook",
+                    platform_media_id=facebook_post_id,
+                    status="published",
+                    published_at=datetime.now(timezone.utc),
+                )
+
+                db.add(log)
+                db.commit()
+                db.refresh(log)
+
+                successful_count += 1
+
+                results.append(
+                    {
+                        "social_account_id": social_account.id,
+                        "account_name": account_name,
+                        "platform": "facebook",
+                        "status": "published",
+                        "log_id": log.id,
+                        "facebook_post_id": facebook_post_id,
+                    }
+                )
+
+            # --------------------------------------------------
+            # LINKEDIN
+            # --------------------------------------------------
+
+            elif platform_name == "linkedin":
+
+                linkedin_post_id = publish_to_linkedin(
+                    db=db,
+                    post=post,
+                    social_account=social_account,
+                )
+
+                log = PublishingLog(
+                    post_id=post.id,
+                    social_account_id=social_account.id,
+                    platform="linkedin",
+                    platform_media_id=linkedin_post_id,
+                    status="published",
+                    published_at=datetime.now(timezone.utc),
+                )
+
+                db.add(log)
+                db.commit()
+                db.refresh(log)
+
+                successful_count += 1
+
+                results.append(
+                    {
+                        "social_account_id": social_account.id,
+                        "account_name": account_name,
+                        "platform": "linkedin",
+                        "status": "published",
+                        "log_id": log.id,
+                        "linkedin_post_id": linkedin_post_id,
+                    }
+                )
+
+            # --------------------------------------------------
             # OTHER PLATFORMS
             # --------------------------------------------------
 
@@ -282,12 +620,8 @@ def publish_post(
     # Update overall post status
     # --------------------------------------------------
 
-    if successful_count > 0 and failed_count == 0:
+    if successful_count > 0:
         post.status = "published"
-
-    elif successful_count > 0:
-        post.status = "published"
-
     else:
         post.status = "failed"
 

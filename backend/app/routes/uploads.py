@@ -22,11 +22,7 @@ ALLOWED_CONTENT_TYPES = {
     "image/webp": ".webp",
 }
 
-PUBLIC_BASE_URL = os.getenv(
-    "PUBLIC_BASE_URL",
-    "https://nancy-northwest-hall-andreas.trycloudflare.com",
-)
-
+PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL")
 @router.post("/image")
 async def upload_image(
     file: UploadFile = File(...),

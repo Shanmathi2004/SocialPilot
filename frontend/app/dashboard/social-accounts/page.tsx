@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState } from "react";
@@ -34,21 +35,21 @@ const platforms: Platform[] = [
     key: "facebook",
     icon: "📘",
     description: "Connect your Facebook Page.",
-    available: false,
+    available: true,
   },
   {
     name: "LinkedIn",
     key: "linkedin",
     icon: "💼",
     description: "Connect your LinkedIn profile or company page.",
-    available: false,
+    available: true,
   },
   {
     name: "YouTube",
     key: "youtube",
     icon: "▶️",
     description: "Connect your YouTube channel.",
-    available: false,
+    available: true,
   },
   {
     name: "X",
@@ -72,19 +73,15 @@ export default function SocialAccountsPage() {
   const [accounts, setAccounts] = useState<SocialAccount[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [connecting, setConnecting] = useState(false);
-  const [connectingPlatform, setConnectingPlatform] =
-    useState("");
-  const [disconnectingId, setDisconnectingId] =
-    useState<number | null>(null);
+  const [connectingPlatform, setConnectingPlatform] = useState("");
+  const [disconnectingId, setDisconnectingId] = useState<number | null>(null);
 
   // --------------------------------------------------
   // LOAD CONNECTED ACCOUNTS
   // --------------------------------------------------
 
   useEffect(() => {
-    const token =
-      localStorage.getItem("access_token");
+    const token = localStorage.getItem("access_token");
 
     if (!token) {
       router.replace("/login");
@@ -98,20 +95,15 @@ export default function SocialAccountsPage() {
     try {
       setError("");
 
-      const response = await fetch(
-        `${API_URL}/api/social-accounts`,
-        {
-          method: "GET",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
+      const response = await fetch(`${API_URL}/api/social-accounts`, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
 
       if (response.status === 401) {
-        localStorage.removeItem(
-          "access_token"
-        );
+        localStorage.removeItem("access_token");
         localStorage.removeItem("user");
 
         router.replace("/login");
@@ -119,32 +111,25 @@ export default function SocialAccountsPage() {
       }
 
       if (!response.ok) {
-        throw new Error(
-          "Failed to load social accounts."
-        );
+        throw new Error("Failed to load social accounts.");
       }
 
       const data = await response.json();
 
-      console.log(
-        "Social accounts API response:",
-        data
-      );
+      console.log("Social accounts API response:", data);
 
       if (Array.isArray(data)) {
         setAccounts(
           data.filter(
             (account: SocialAccount) =>
-              account.status?.toLowerCase() ===
-              "connected"
+              account.status?.toLowerCase() === "connected"
           )
         );
       } else if (Array.isArray(data.accounts)) {
         setAccounts(
           data.accounts.filter(
             (account: SocialAccount) =>
-              account.status?.toLowerCase() ===
-              "connected"
+              account.status?.toLowerCase() === "connected"
           )
         );
       } else {
@@ -152,10 +137,7 @@ export default function SocialAccountsPage() {
       }
     } catch (error) {
       console.error(error);
-
-      setError(
-        "Unable to load social accounts."
-      );
+      setError("Unable to load social accounts.");
     } finally {
       setLoading(false);
     }
@@ -167,12 +149,10 @@ export default function SocialAccountsPage() {
 
   const connectInstagram = async () => {
     setError("");
-    setConnecting(true);
     setConnectingPlatform("instagram");
 
     try {
-      const token =
-        localStorage.getItem("access_token");
+      const token = localStorage.getItem("access_token");
 
       if (!token) {
         router.replace("/login");
@@ -190,9 +170,7 @@ export default function SocialAccountsPage() {
       );
 
       if (response.status === 401) {
-        localStorage.removeItem(
-          "access_token"
-        );
+        localStorage.removeItem("access_token");
         localStorage.removeItem("user");
 
         router.replace("/login");
@@ -200,29 +178,22 @@ export default function SocialAccountsPage() {
       }
 
       if (!response.ok) {
-        const data =
-          await response.json().catch(() => null);
+        const data = await response.json().catch(() => null);
 
         throw new Error(
-          data?.detail ||
-            "Unable to start Instagram connection."
+          data?.detail || "Unable to start Instagram connection."
         );
       }
 
       const data = await response.json();
 
       if (!data.login_url) {
-        throw new Error(
-          "Instagram login URL was not returned."
-        );
+        throw new Error("Instagram login URL was not returned.");
       }
 
       window.location.href = data.login_url;
     } catch (error) {
-      console.error(
-        "Instagram connection error:",
-        error
-      );
+      console.error("Instagram connection error:", error);
 
       setError(
         error instanceof Error
@@ -230,7 +201,192 @@ export default function SocialAccountsPage() {
           : "Unable to connect Instagram."
       );
 
-      setConnecting(false);
+      setConnectingPlatform("");
+    }
+  };
+
+  // --------------------------------------------------
+  // FACEBOOK CONNECTION
+  // --------------------------------------------------
+
+  const connectFacebook = async () => {
+    setError("");
+    setConnectingPlatform("facebook");
+
+    try {
+      const token = localStorage.getItem("access_token");
+
+      if (!token) {
+        router.replace("/login");
+        return;
+      }
+
+      const response = await fetch(
+        `${API_URL}/api/social/facebook/login`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (response.status === 401) {
+        localStorage.removeItem("access_token");
+        localStorage.removeItem("user");
+
+        router.replace("/login");
+        return;
+      }
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+
+        throw new Error(
+          data?.detail || "Unable to start Facebook connection."
+        );
+      }
+
+      const data = await response.json();
+
+      if (!data.login_url) {
+        throw new Error("Facebook login URL was not returned.");
+      }
+
+      window.location.href = data.login_url;
+    } catch (error) {
+      console.error("Facebook connection error:", error);
+
+      setError(
+        error instanceof Error
+          ? error.message
+          : "Unable to connect Facebook."
+      );
+
+      setConnectingPlatform("");
+    }
+  };
+
+  // --------------------------------------------------
+  // LINKEDIN CONNECTION
+  // --------------------------------------------------
+
+  const connectLinkedIn = async () => {
+    setError("");
+    setConnectingPlatform("linkedin");
+
+    try {
+      const token = localStorage.getItem("access_token");
+
+      if (!token) {
+        router.replace("/login");
+        return;
+      }
+
+      const response = await fetch(
+        `${API_URL}/api/social/linkedin/login`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (response.status === 401) {
+        localStorage.removeItem("access_token");
+        localStorage.removeItem("user");
+
+        router.replace("/login");
+        return;
+      }
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+
+        throw new Error(
+          data?.detail || "Unable to start LinkedIn connection."
+        );
+      }
+
+      const data = await response.json();
+
+      if (!data.login_url) {
+        throw new Error("LinkedIn login URL was not returned.");
+      }
+
+      window.location.href = data.login_url;
+    } catch (error) {
+      console.error("LinkedIn connection error:", error);
+
+      setError(
+        error instanceof Error
+          ? error.message
+          : "Unable to connect LinkedIn."
+      );
+
+      setConnectingPlatform("");
+    }
+  };
+
+  // --------------------------------------------------
+  // YOUTUBE CONNECTION
+  // --------------------------------------------------
+
+  const connectYouTube = async () => {
+    setError("");
+    setConnectingPlatform("youtube");
+
+    try {
+      const token = localStorage.getItem("access_token");
+
+      if (!token) {
+        router.replace("/login");
+        return;
+      }
+
+      const response = await fetch(
+        `${API_URL}/api/social/youtube/login`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (response.status === 401) {
+        localStorage.removeItem("access_token");
+        localStorage.removeItem("user");
+
+        router.replace("/login");
+        return;
+      }
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+
+        throw new Error(
+          data?.detail || "Unable to start YouTube connection."
+        );
+      }
+
+      const data = await response.json();
+
+      if (!data.login_url) {
+        throw new Error("YouTube login URL was not returned.");
+      }
+
+      window.location.href = data.login_url;
+    } catch (error) {
+      console.error("YouTube connection error:", error);
+
+      setError(
+        error instanceof Error
+          ? error.message
+          : "Unable to connect YouTube."
+      );
+
       setConnectingPlatform("");
     }
   };
@@ -239,14 +395,9 @@ export default function SocialAccountsPage() {
   // OTHER PLATFORM CONNECTION
   // --------------------------------------------------
 
-  const connectPlatform = (
-    platformName: string
-  ) => {
+  const connectPlatform = (platformName: string) => {
     setError("");
-
-    setConnectingPlatform(
-      platformName.toLowerCase()
-    );
+    setConnectingPlatform(platformName.toLowerCase());
 
     setTimeout(() => {
       setConnectingPlatform("");
@@ -261,11 +412,24 @@ export default function SocialAccountsPage() {
   // MAIN CONNECT HANDLER
   // --------------------------------------------------
 
-  const handleConnect = async (
-    platform: Platform
-  ) => {
+  const handleConnect = async (platform: Platform) => {
     if (platform.key === "instagram") {
       await connectInstagram();
+      return;
+    }
+
+    if (platform.key === "facebook") {
+      await connectFacebook();
+      return;
+    }
+
+    if (platform.key === "linkedin") {
+      await connectLinkedIn();
+      return;
+    }
+
+    if (platform.key === "youtube") {
+      await connectYouTube();
       return;
     }
 
@@ -276,11 +440,8 @@ export default function SocialAccountsPage() {
   // DISCONNECT ACCOUNT
   // --------------------------------------------------
 
-  const disconnectAccount = async (
-    accountId: number
-  ) => {
-    const token =
-      localStorage.getItem("access_token");
+  const disconnectAccount = async (accountId: number) => {
+    const token = localStorage.getItem("access_token");
 
     if (!token) {
       router.replace("/login");
@@ -302,9 +463,7 @@ export default function SocialAccountsPage() {
       );
 
       if (response.status === 401) {
-        localStorage.removeItem(
-          "access_token"
-        );
+        localStorage.removeItem("access_token");
         localStorage.removeItem("user");
 
         router.replace("/login");
@@ -312,19 +471,16 @@ export default function SocialAccountsPage() {
       }
 
       if (!response.ok) {
-        const data =
-          await response.json().catch(() => null);
+        const data = await response.json().catch(() => null);
 
         throw new Error(
-          data?.detail ||
-            "Failed to disconnect account."
+          data?.detail || "Failed to disconnect account."
         );
       }
 
       setAccounts((currentAccounts) =>
         currentAccounts.filter(
-          (account) =>
-            account.id !== accountId
+          (account) => account.id !== accountId
         )
       );
     } catch (error) {
@@ -344,9 +500,7 @@ export default function SocialAccountsPage() {
   // PLATFORM ICON
   // --------------------------------------------------
 
-  const getPlatformIcon = (
-    platform: string
-  ) => {
+  const getPlatformIcon = (platform: string) => {
     switch (platform.toLowerCase()) {
       case "instagram":
         return "📸";
@@ -458,7 +612,7 @@ export default function SocialAccountsPage() {
           </div>
 
           <span className="hidden rounded-full bg-slate-100 px-3 py-1 text-[10px] font-semibold text-slate-500 sm:block">
-            1 of 6 available
+            4 of 6 available
           </span>
 
         </div>
@@ -468,9 +622,9 @@ export default function SocialAccountsPage() {
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
 
           {platforms.map((platform) => {
+
             const isConnecting =
-              connectingPlatform ===
-              platform.key;
+              connectingPlatform === platform.key;
 
             return (
               <div
@@ -490,7 +644,13 @@ export default function SocialAccountsPage() {
                     className={`flex h-12 w-12 items-center justify-center rounded-xl text-2xl ${
                       platform.key === "instagram"
                         ? "bg-pink-50"
-                        : "bg-slate-100"
+                        : platform.key === "facebook"
+                          ? "bg-blue-50"
+                          : platform.key === "linkedin"
+                            ? "bg-sky-50"
+                            : platform.key === "youtube"
+                              ? "bg-red-50"
+                              : "bg-slate-100"
                     }`}
                   >
                     {platform.icon}
@@ -526,9 +686,7 @@ export default function SocialAccountsPage() {
 
                 <button
                   type="button"
-                  onClick={() =>
-                    handleConnect(platform)
-                  }
+                  onClick={() => handleConnect(platform)}
                   disabled={isConnecting}
                   className={`mt-5 w-full rounded-xl px-4 py-2.5 text-xs font-bold transition ${
                     platform.available
@@ -542,9 +700,7 @@ export default function SocialAccountsPage() {
                 >
                   {isConnecting
                     ? "Connecting..."
-                    : platform.available
-                      ? `Connect ${platform.name}`
-                      : `Connect ${platform.name}`}
+                    : `Connect ${platform.name}`}
                 </button>
 
                 {!platform.available && (
@@ -586,6 +742,7 @@ export default function SocialAccountsPage() {
         </div>
 
         {loading ? (
+
           <div className="p-10 text-center">
 
             <div className="mx-auto h-7 w-7 animate-spin rounded-full border-2 border-slate-200 border-t-slate-900" />
@@ -595,7 +752,9 @@ export default function SocialAccountsPage() {
             </p>
 
           </div>
+
         ) : accounts.length === 0 ? (
+
           <div className="px-5 py-12 text-center">
 
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-2xl">
@@ -607,21 +766,49 @@ export default function SocialAccountsPage() {
             </h3>
 
             <p className="mx-auto mt-1.5 max-w-sm text-xs leading-5 text-slate-500">
-              Connect Instagram now, or connect another platform when its integration becomes available.
+              Connect Instagram, Facebook, LinkedIn, or YouTube now, or connect another platform when its integration becomes available.
             </p>
 
-            <button
-              onClick={connectInstagram}
-              className="mt-4 rounded-xl bg-slate-950 px-4 py-2.5 text-xs font-bold text-white hover:bg-slate-800"
-            >
-              Connect Instagram
-            </button>
+            <div className="mt-4 flex flex-wrap justify-center gap-2">
+
+              <button
+                onClick={connectInstagram}
+                className="rounded-xl bg-slate-950 px-4 py-2.5 text-xs font-bold text-white hover:bg-slate-800"
+              >
+                Connect Instagram
+              </button>
+
+              <button
+                onClick={connectFacebook}
+                className="rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-blue-700"
+              >
+                Connect Facebook
+              </button>
+
+              <button
+                onClick={connectLinkedIn}
+                className="rounded-xl bg-sky-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-sky-700"
+              >
+                Connect LinkedIn
+              </button>
+
+              <button
+                onClick={connectYouTube}
+                className="rounded-xl bg-red-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-red-700"
+              >
+                Connect YouTube
+              </button>
+
+            </div>
 
           </div>
+
         ) : (
+
           <div className="divide-y divide-slate-100">
 
             {accounts.map((account) => (
+
               <div
                 key={account.id}
                 className="flex flex-col gap-4 px-5 py-4 sm:flex-row sm:items-center sm:justify-between"
@@ -630,9 +817,7 @@ export default function SocialAccountsPage() {
                 <div className="flex min-w-0 items-center gap-3">
 
                   <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-xl">
-                    {getPlatformIcon(
-                      account.platform
-                    )}
+                    {getPlatformIcon(account.platform)}
                   </div>
 
                   <div className="min-w-0">
@@ -661,26 +846,22 @@ export default function SocialAccountsPage() {
 
                 <button
                   onClick={() =>
-                    disconnectAccount(
-                      account.id
-                    )
+                    disconnectAccount(account.id)
                   }
-                  disabled={
-                    disconnectingId ===
-                    account.id
-                  }
+                  disabled={disconnectingId === account.id}
                   className="rounded-xl border border-red-200 px-4 py-2 text-xs font-bold text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {disconnectingId ===
-                  account.id
+                  {disconnectingId === account.id
                     ? "Disconnecting..."
                     : "Disconnect"}
                 </button>
 
               </div>
+
             ))}
 
           </div>
+
         )}
 
       </div>
@@ -688,3 +869,4 @@ export default function SocialAccountsPage() {
     </div>
   );
 }
+
